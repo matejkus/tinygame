@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2c3e50">
+    <title>Educational Car Game - Simple</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+        }
+        
+        #gameContainer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: #27ae60;
+        }
+        
+        #gameCanvas {
+            display: block;
+            width: 100vw;
+            height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+        }
+        
+        #questionDisplay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            right: 10px;
+            background-color: rgba(52, 73, 94, 0.9);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 16px;
+            font-weight: bold;
+            z-index: 100;
+        }
+        
+        #scoreDisplay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(46, 204, 113, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 100;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px;
+            border-radius: 5px;
+            text-align: center;
+            font-size: 12px;
+            z-index: 100;
+        }
+        
+        #debugInfo {
+            position: absolute;
+            top: 50px;
+            left: 10px;
+            background: rgba(0,0,0,0.7);
+            color: white;
+            padding: 5px;
+            font-size: 10px;
+            z-index: 100;
+        }
+        
+        /* Always landscape - no portrait handling */
+        
+        @media (orientation: landscape) {
+            #questionDisplay {
+                font-size: 14px;
+                padding: 8px;
+            }
+            
+            #scoreDisplay {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+            
+            #instructions {
+                font-size: 10px;
+                padding: 6px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+        <div id="questionDisplay">Collect only correct Python!</div>
+        <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
+        <div id="instructions">Touch and drag to move the car, or tilt your phone!</div>
+        <div id="debugInfo">Loading...</div>
+        <div id="tiltStatus" style="position: absolute; top: 110px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; font-size: 10px; z-index: 100;">
+            Tilt: Not Working
+        </div>
+        <button id="enableTiltBtn" style="position: absolute; top: 80px; left: 10px; background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
+            Enable Tilt
+        </button>
+        <button id="uploadBtn" style="position: absolute; top: 80px; left: 140px; background: #8e44ad; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
+            Upload Content
+        </button>
+        <input id="uploadInput" type="file" accept=".json,.csv" style="display:none" />
+        <button id="downloadJsonBtn" style="position: absolute; top: 80px; left: 260px; background: #16a085; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
+            Download Sample JSON
+        </button>
+        <button id="downloadCsvBtn" style="position: absolute; top: 80px; left: 420px; background: #f39c12; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
+            Download Sample CSV
+        </button>
+    </div>
+    
+    <script>
+        console.log('Simple game starting...');
+        
+        // Get elements
+        var canvas = document.getElementById('gameCanvas');
+        var ctx = canvas.getContext('2d');
+        var debugInfo = document.getElementById('debugInfo');
+        
+        // Set canvas size - consistent base size, scaled for larger screens
+        function setCanvasSize() {
+            // Base dimensions (Full HD 16:9)
+            var baseWidth = 1920;
+            var baseHeight = 1080;
+            
+            // Calculate scale factor based on screen size
+            var screenWidth = Math.max(window.innerWidth, window.innerHeight);
+            var screenHeight = Math.min(window.innerWidth, window.innerHeight);
+            
+            // Scale to COVER the viewport while preserving aspect ratio
+            var scaleX = screenWidth / baseWidth;
+            var scaleY = screenHeight / baseHeight;
+            var scale = Math.max(scaleX, scaleY); // cover entire screen (no letterboxing)
+            
+            // Adjust game speed based on scale to maintain consistent feel
+            gameSpeed = baseGameSpeed * scale;
+            
+            // Set canvas to base size (game logic uses these dimensions)
+            canvas.width = baseWidth;
+            canvas.height = baseHeight;
+            
+            // Scale the display size to cover the viewport
+            var displayWidth = baseWidth * scale;
+            var displayHeight = baseHeight * scale;
+            
+            // Center canvas
+            canvas.style.position = 'absolute';
+            canvas.style.top = '50%';
+            canvas.style.left = '50%';
+            canvas.style.transform = 'translate(-50%, -50%)';
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+        }
+        setCanvasSize();
+        
+        // Update debug
+        debugInfo.innerHTML = 'Canvas: ' + canvas.width + 'x' + canvas.height;
+        
+        // Game variables
+        var carX = canvas.width / 2;
+        var carY = canvas.height - 100;
+        var objects = [];
+        var correctCount = 0;
+        var wrongCount = 0;
+        var isDragging = false;
+        var tiltX = 0;
+        var tiltEnabled = false;
+        var roadOffset = 0; // For scrolling road effect
+        var baseGameSpeed = 2; // Base speed for mobile
+        var gameSpeed = 2; // Will be adjusted based on screen scale
+        var carSteering = 0; // Car's current steering direction (-1 to 1)
+        var carVelocity = 0; // Car's horizontal velocity
+        var carAngle = 0;    // Visual tilt angle (radians)
+        
+        // Desktop control state
+        var inputAxis = 0; // -1 left, 1 right, 0 none
+        var keyLeftDown = false;
+        var keyRightDown = false;
+        var lastPointerX = null; // for mouse/touch deltas
+        
+        // Parallax for background layers
+        var staticOffset = 0;
+        var staticParallaxFactor = 0.08; // very slow relative to gameSpeed
+        var midOffset = 0;
+        var midParallaxFactor = 0.20;    // slower than foreground, faster than static
+        
+        // Background image system (multi-layer)
+        var staticBackground = null;   // non-scrolling layer
+        var midOverlay = null;         // mid parallax overlay (slow)
+        var scrollOverlay = null;      // fast scrolling road lines layer
+        var staticLoaded = false;
+        var midLoaded = false;
+        var scrollLoaded = false;
+
+        // Vehicle sprite
+        var vehicleImage = null;
+        var vehicleLoaded = false;
+        
+        // Spawn control (consistent pacing)
+        var spawnIntervalMs = 1800; // base interval between spawns (increased for more thinking time)
+        var spawnJitterMs = 600;   // random variation to avoid perfect rhythm
+        var nextSpawnAt = 0;       // timestamp (ms) when next spawn is allowed
+        var maxObjects = 2;        // cap concurrent objects (reduced for less clutter)
+        var minLaneGapPx = 200;    // minimal vertical gap within same lane (increased)
+        var lastSpawnLane = -1;    // remember previous lane to rotate fairly
+
+        // Content state (starts empty - must be uploaded)
+        var contentQuestion = '';
+        var contentCorrect = [];
+        var contentIncorrect = [];
+        var gameStarted = false;
+        
+        // Track which items have been used (to avoid repeats)
+        var usedCorrectItems = [];
+        var usedIncorrectItems = [];
+        var gameEnded = false;
+
+        function setQuestion(text) {
+            var q = document.getElementById('questionDisplay');
+            if (q) q.textContent = text;
+        }
+        
+        // Show upload prompt initially
+        function showUploadPrompt() {
+            setQuestion('Please upload content to start the game!');
+        }
+        showUploadPrompt();
+
+        // Upload content handlers
+        var uploadBtn = document.getElementById('uploadBtn');
+        var uploadInput = document.getElementById('uploadInput');
+        if (uploadBtn && uploadInput) {
+            uploadBtn.addEventListener('click', function() { uploadInput.click(); });
+            uploadInput.addEventListener('change', function(ev) {
+                var file = ev.target.files && ev.target.files[0];
+                if (!file) return;
+                var reader = new FileReader();
+                reader.onload = function() {
+                    try {
+                        var text = String(reader.result || '');
+                        if (/^\s*\{/.test(text)) {
+                            // JSON
+                            var data = JSON.parse(text);
+                            applyUploadedContent(data);
+                        } else {
+                            // CSV
+                            var data = parseCSV(text);
+                            applyUploadedContent(data);
+                        }
+                        // Reset input
+                        uploadInput.value = '';
+                        alert('Content loaded successfully.');
+                    } catch (e) {
+                        console.error(e);
+                        alert('Failed to load content. Please upload valid JSON or CSV.');
+                    }
+                };
+                reader.readAsText(file);
+            });
+        }
+
+        // Sample content (Big Data topic)
+        function getSampleContent() {
+            return {
+                question: "Collect only things that are 'big data'",
+                correct: [
+                    'Social media activity logs',
+                    'IoT sensor streams from thousands of devices',
+                    'Clickstream data from a major e‑commerce site',
+                    'Web server logs at internet scale',
+                    'Satellite imagery archives updated daily',
+                    'Global financial transaction streams',
+                    'Telemetry from millions of connected cars',
+                    'Genome sequencing datasets across populations',
+                    'Email delivery logs from a large provider',
+                    'Ad impression and auction logs'
+                ],
+                incorrect: [
+                    'A 2 GB video file',
+                    'A ZIP of vacation photos',
+                    'A single machine\'s log file',
+                    'An Excel sheet with thousands of rows',
+                    'A local database with 100k records',
+                    'A PDF archive of reports',
+                    'A full hard‑drive backup',
+                    'One HD movie file',
+                    'A large PSD design file',
+                    'A 500 MB CSV export'
+                ]
+            };
+        }
+
+        function downloadBlob(filename, text, mime) {
+            var blob = new Blob([text], { type: mime || 'text/plain' });
+            var url = URL.createObjectURL(blob);
+            var a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(function(){
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+        }
+
+        function downloadSampleJSON() {
+            var data = getSampleContent();
+            var text = JSON.stringify(data, null, 2);
+            downloadBlob('sample-content.json', text, 'application/json');
+        }
+
+        function downloadSampleCSV() {
+            var data = getSampleContent();
+            var lines = [];
+            lines.push('type,text,question');
+            // Put question only on the first row to keep it concise
+            if (data.correct && data.correct.length) {
+                lines.push('correct,"' + data.correct[0].replace(/"/g,'""') + '","' + data.question.replace(/"/g,'""') + '"');
+                for (var i=1;i<data.correct.length;i++) {
+                    lines.push('correct,"' + data.correct[i].replace(/"/g,'""') + '",');
+                }
+            }
+            if (data.incorrect && data.incorrect.length) {
+                for (var j=0;j<data.incorrect.length;j++) {
+                    lines.push('incorrect,"' + data.incorrect[j].replace(/"/g,'""') + '",');
+                }
+            }
+            downloadBlob('sample-content.csv', lines.join('\n'), 'text/csv');
+        }
+
+        // Wire sample download buttons
+        var downloadJsonBtn = document.getElementById('downloadJsonBtn');
+        var downloadCsvBtn = document.getElementById('downloadCsvBtn');
+        if (downloadJsonBtn) downloadJsonBtn.addEventListener('click', downloadSampleJSON);
+        if (downloadCsvBtn) downloadCsvBtn.addEventListener('click', downloadSampleCSV);
+
+        function applyUploadedContent(data) {
+            // JSON format: { question: string, correct: string[], incorrect: string[] }
+            // CSV parsed format: { question, correct, incorrect }
+            var q = data.question || 'Collect the correct items!';
+            var corr = Array.isArray(data.correct) ? data.correct : [];
+            var inc = Array.isArray(data.incorrect) ? data.incorrect : [];
+            if (!corr.length || !inc.length) throw new Error('Lists cannot be empty');
+            contentQuestion = q;
+            contentCorrect = corr;
+            contentIncorrect = inc;
+            
+            // Reset tracking arrays
+            usedCorrectItems = [];
+            usedIncorrectItems = [];
+            gameEnded = false;
+            
+            setQuestion(contentQuestion);
+            
+            // Hide upload buttons and start game
+            hideUploadButtons();
+            startGame();
+        }
+        
+        function hideUploadButtons() {
+            var uploadBtn = document.getElementById('uploadBtn');
+            var downloadJsonBtn = document.getElementById('downloadJsonBtn');
+            var downloadCsvBtn = document.getElementById('downloadCsvBtn');
+            if (uploadBtn) uploadBtn.style.display = 'none';
+            if (downloadJsonBtn) downloadJsonBtn.style.display = 'none';
+            if (downloadCsvBtn) downloadCsvBtn.style.display = 'none';
+        }
+        
+        function startGame() {
+            gameStarted = true;
+            gameEnded = false;
+            console.log('Game started with content:', contentQuestion);
+        }
+        
+        function endGame() {
+            gameEnded = true;
+            var totalCorrectItems = contentCorrect.length;
+            var accuracy = totalCorrectItems > 0 ? Math.round((correctCount / totalCorrectItems) * 100) : 0;
+            
+            setQuestion('Game Over! Accuracy: ' + accuracy + '% (' + correctCount + '/' + totalCorrectItems + ' correct items)');
+            console.log('Game ended. Final score:', correctCount, 'correct,', wrongCount, 'wrong');
+            
+            // Clear any remaining objects
+            objects = [];
+        }
+
+        function parseCSV(csvText) {
+            // Expected header: type,text OR question,text (question row optional)
+            var lines = csvText.split(/\r?\n/).filter(function(l){return l.trim().length>0;});
+            if (!lines.length) throw new Error('Empty CSV');
+            var header = lines[0].split(',').map(function(h){return h.trim().toLowerCase();});
+            var idxType = header.indexOf('type');
+            var idxText = header.indexOf('text');
+            var idxQuestion = header.indexOf('question');
+            if (idxText === -1) throw new Error('CSV must have a text column');
+            var corr = [];
+            var inc = [];
+            var question = 'Collect the correct items!';
+            for (var i=1;i<lines.length;i++) {
+                var raw = lines[i];
+                var parts = raw.split(',');
+                if (parts.length < 1) continue;
+                if (idxQuestion !== -1 && parts[idxQuestion] && parts[idxQuestion].trim().length>0) {
+                    question = parts[idxQuestion].trim();
+                }
+                var t = parts[idxText] ? parts[idxText].trim() : '';
+                var ty = idxType !== -1 && parts[idxType] ? parts[idxType].trim().toLowerCase() : '';
+                if (!t) continue;
+                if (ty === 'correct') corr.push(t);
+                else if (ty === 'incorrect') inc.push(t);
+            }
+            if (!corr.length && !inc.length) throw new Error('No rows found');
+            return { question: question, correct: corr, incorrect: inc };
+        }
+        
+        // Update score display
+        function updateScore() {
+            var scoreDisplay = document.getElementById('scoreDisplay');
+            if (scoreDisplay) {
+                scoreDisplay.innerHTML = 'Correct: ' + correctCount + ' | Wrong: ' + wrongCount;
+            }
+        }
+        
+        // Load all image assets
+        function loadAssets() {
+            // Static background
+            staticBackground = new Image();
+            staticBackground.onload = function() {
+                staticLoaded = true;
+                console.log('Static background loaded');
+            };
+            staticBackground.onerror = function onStaticError() {
+                // Try .jpg fallback once if .png missing
+                if (staticBackground && /background-static\.png$/i.test(staticBackground.src)) {
+                    console.log('Static .png not found, trying background-static.jpg');
+                    staticBackground.onerror = function() {
+                        console.log('Static background failed to load, using fallback fill');
+                        staticLoaded = false;
+                    };
+                    staticBackground.src = 'background-static.jpg';
+                } else {
+                    console.log('Static background failed to load, using fallback fill');
+                    staticLoaded = false;
+                }
+            };
+            try {
+                staticBackground.src = 'background-static.png'; // Prefer .png; falls back to .jpg
+            } catch (e) {
+                staticLoaded = false;
+            }
+
+            // Mid overlay (slow)
+            midOverlay = new Image();
+            midOverlay.onload = function() {
+                midLoaded = true;
+                console.log('Mid overlay loaded');
+            };
+            midOverlay.onerror = function() {
+                console.log('Mid overlay failed to load (optional)');
+                midLoaded = false;
+            };
+            try {
+                midOverlay.src = 'background-mid.png';
+            } catch (e) {
+                midLoaded = false;
+            }
+
+            // Scrolling overlay (fast)
+            scrollOverlay = new Image();
+            scrollOverlay.onload = function() {
+                scrollLoaded = true;
+                console.log('Scrolling overlay loaded');
+            };
+            scrollOverlay.onerror = function() {
+                console.log('Scrolling overlay failed to load, using drawn road');
+                scrollLoaded = false;
+            };
+            try {
+                scrollOverlay.src = 'background-scroll.png'; // Provide this image
+            } catch (e) {
+                scrollLoaded = false;
+            }
+
+            // Vehicle image
+            vehicleImage = new Image();
+            vehicleImage.onload = function() {
+                vehicleLoaded = true;
+                console.log('Vehicle image loaded');
+            };
+            vehicleImage.onerror = function() {
+                vehicleLoaded = false;
+                console.log('Vehicle image failed to load, using fallback rectangle');
+            };
+            try {
+                vehicleImage.src = 'vehicle.png';
+            } catch (e) {
+                vehicleLoaded = false;
+            }
+        }
+        
+        // Draw road with two layers (static + scrolling overlay)
+        function drawRoad() {
+            // Base fill (in case static not provided)
+            if (!staticLoaded) {
+                // Grass background
+                ctx.fillStyle = '#27ae60';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            } else {
+                drawScrollingStaticBackground();
+            }
+
+            if (midLoaded) {
+                drawScrollingMidOverlay();
+            }
+
+            if (scrollLoaded) {
+                drawScrollingOverlay();
+            } else {
+                // Fallback to original drawn road lines if overlay missing
+                drawDrawnRoad();
+            }
+        }
+        
+        // Draw static background layer with very slow scrolling (parallax)
+        function drawScrollingStaticBackground() {
+            var iw = staticBackground.width;
+            var ih = staticBackground.height;
+            var scaleX = canvas.width / iw;
+            var scaleY = canvas.height / ih;
+            var scale = Math.max(scaleX, scaleY); // cover
+            var sw = iw * scale;
+            var sh = ih * scale;
+            var offsetX = (canvas.width - sw) / 2;
+            var scrollY = staticOffset % sh;
+            ctx.drawImage(staticBackground, offsetX, scrollY, sw, sh);
+            ctx.drawImage(staticBackground, offsetX, scrollY - sh, sw, sh);
+        }
+
+        // Draw scrolling overlay image, tiled vertically
+        function drawScrollingOverlay() {
+            var ih = scrollOverlay.height;
+            var iw = scrollOverlay.width;
+            var scaleX = canvas.width / iw;
+            var scaleY = canvas.height / ih;
+            var scale = Math.max(scaleX, scaleY);
+            var sw = iw * scale;
+            var sh = ih * scale;
+            var offsetX = (canvas.width - sw) / 2;
+            var scrollY = roadOffset % sh;
+            ctx.drawImage(scrollOverlay, offsetX, scrollY, sw, sh);
+            ctx.drawImage(scrollOverlay, offsetX, scrollY - sh, sw, sh);
+        }
+
+        // Draw mid overlay image, tiled vertically (slow parallax)
+        function drawScrollingMidOverlay() {
+            var ih = midOverlay.height;
+            var iw = midOverlay.width;
+            var scaleX = canvas.width / iw;
+            var scaleY = canvas.height / ih;
+            var scale = Math.max(scaleX, scaleY);
+            var sw = iw * scale;
+            var sh = ih * scale;
+            var offsetX = (canvas.width - sw) / 2;
+            var scrollY = midOffset % sh;
+            ctx.drawImage(midOverlay, offsetX, scrollY, sw, sh);
+            ctx.drawImage(midOverlay, offsetX, scrollY - sh, sw, sh);
+        }
+        
+        // Fallback: original drawn road
+        function drawDrawnRoad() {
+            var roadWidth = canvas.width * 0.8; // Wider road - 80% of screen width
+            var roadX = (canvas.width - roadWidth) / 2;
+            
+            // Road background
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(roadX, 0, roadWidth, canvas.height);
+            
+            // Scrolling lane lines
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            
+            // Left lane divider - scrolling
+            ctx.beginPath();
+            var leftLaneX = roadX + roadWidth / 3;
+            for (var y = roadOffset % 20; y < canvas.height + 20; y += 20) {
+                ctx.moveTo(leftLaneX, y);
+                ctx.lineTo(leftLaneX, y + 10);
+            }
+            ctx.stroke();
+            
+            // Right lane divider - scrolling
+            ctx.beginPath();
+            var rightLaneX = roadX + roadWidth * 2 / 3;
+            for (var y = roadOffset % 20; y < canvas.height + 20; y += 20) {
+                ctx.moveTo(rightLaneX, y);
+                ctx.lineTo(rightLaneX, y + 10);
+            }
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            
+            // Road edges
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(roadX, 0);
+            ctx.lineTo(roadX, canvas.height);
+            ctx.moveTo(roadX + roadWidth, 0);
+            ctx.lineTo(roadX + roadWidth, canvas.height);
+            ctx.stroke();
+        }
+        
+        // Draw static road (no scrolling) for game over screen
+        function drawStaticRoad() {
+            if (staticLoaded) {
+                drawStaticBackgroundScaled();
+            } else {
+                // Fallback to drawn static road
+                drawStaticDrawnRoad();
+            }
+        }
+        
+        // Fallback: static drawn road
+        function drawStaticDrawnRoad() {
+            var roadWidth = canvas.width * 0.8; // Wider road - 80% of screen width
+            var roadX = (canvas.width - roadWidth) / 2;
+            
+            // Road background
+            ctx.fillStyle = '#34495e';
+            ctx.fillRect(roadX, 0, roadWidth, canvas.height);
+            
+            // Static lane lines
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 10]);
+            
+            // Left lane divider - static
+            ctx.beginPath();
+            var leftLaneX = roadX + roadWidth / 3;
+            for (var y = 0; y < canvas.height + 20; y += 20) {
+                ctx.moveTo(leftLaneX, y);
+                ctx.lineTo(leftLaneX, y + 10);
+            }
+            ctx.stroke();
+            
+            // Right lane divider - static
+            ctx.beginPath();
+            var rightLaneX = roadX + roadWidth * 2 / 3;
+            for (var y = 0; y < canvas.height + 20; y += 20) {
+                ctx.moveTo(rightLaneX, y);
+                ctx.lineTo(rightLaneX, y + 10);
+            }
+            ctx.stroke();
+            
+            ctx.setLineDash([]);
+            
+            // Road edges
+            ctx.strokeStyle = '#f39c12';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(roadX, 0);
+            ctx.lineTo(roadX, canvas.height);
+            ctx.moveTo(roadX + roadWidth, 0);
+            ctx.lineTo(roadX + roadWidth, canvas.height);
+            ctx.stroke();
+        }
+        
+        // Draw car
+        function drawCar() {
+            // Car size relative to canvas height
+            var carSize = Math.max(96, Math.round(canvas.height * 0.16)); // ~16% of height (2x bigger)
+            ctx.save();
+            ctx.translate(carX, carY);
+            ctx.rotate(carAngle || 0);
+            if (vehicleLoaded && vehicleImage) {
+                ctx.drawImage(vehicleImage, -carSize/2, -carSize/2, carSize, carSize);
+            } else {
+                // Fallback rectangle car
+                ctx.fillStyle = '#e67e22';
+                ctx.fillRect(-carSize*0.25, -carSize*0.4, carSize*0.5, carSize*0.8);
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillRect(-carSize*0.2, -carSize*0.33, carSize*0.4, carSize*0.66);
+            }
+            ctx.restore();
+        }
+        
+        // Create object (single, immediate) - only unused items
+        function createObjectInLane(lane) {
+            var roadWidth = canvas.width * 0.8; // Match the road width
+            var roadX = (canvas.width - roadWidth) / 2;
+            var x = roadX + roadWidth / 6 + (lane * roadWidth / 3);
+            
+            // Get unused items
+            var unusedCorrect = contentCorrect.filter(function(item) {
+                return usedCorrectItems.indexOf(item) === -1;
+            });
+            var unusedIncorrect = contentIncorrect.filter(function(item) {
+                return usedIncorrectItems.indexOf(item) === -1;
+            });
+            
+            // If no unused items, end game
+            if (unusedCorrect.length === 0 && unusedIncorrect.length === 0) {
+                endGame();
+                return;
+            }
+            
+            // Choose random unused object
+            var allUnusedObjects = unusedCorrect.concat(unusedIncorrect);
+            var text = allUnusedObjects[Math.floor(Math.random() * allUnusedObjects.length)];
+            var isCorrect = unusedCorrect.indexOf(text) !== -1;
+            
+            // Mark as used
+            if (isCorrect) {
+                usedCorrectItems.push(text);
+            } else {
+                usedIncorrectItems.push(text);
+            }
+            
+            objects.push({
+                x: x,
+                y: -30,
+                text: text,
+                isCorrect: isCorrect,
+                lane: lane,
+                size: Math.max(80, text.length * 8) // Dynamic size based on text length
+            });
+        }
+
+        function laneHasRecentObject(lane) {
+            for (var i = 0; i < objects.length; i++) {
+                var o = objects[i];
+                if (o.lane === lane && o.y < minLaneGapPx) return true;
+            }
+            return false;
+        }
+
+        function maybeSpawn(nowMs) {
+            // Don't spawn if game hasn't started or has ended
+            if (!gameStarted || gameEnded) return;
+            if (objects.length >= maxObjects) return;
+            if (nowMs < nextSpawnAt) return;
+
+            // Check if all items have been used
+            var unusedCorrect = contentCorrect.filter(function(item) {
+                return usedCorrectItems.indexOf(item) === -1;
+            });
+            var unusedIncorrect = contentIncorrect.filter(function(item) {
+                return usedIncorrectItems.indexOf(item) === -1;
+            });
+            
+            if (unusedCorrect.length === 0 && unusedIncorrect.length === 0) {
+                endGame();
+                return;
+            }
+
+            // Pick a lane different from last if possible
+            var candidateLanes = [0,1,2];
+            if (lastSpawnLane !== -1) {
+                // rotate order to try other lanes first
+                candidateLanes = [ (lastSpawnLane+1)%3, (lastSpawnLane+2)%3, lastSpawnLane ];
+            }
+            var chosenLane = -1;
+            for (var idx=0; idx<candidateLanes.length; idx++) {
+                var l = candidateLanes[idx];
+                if (!laneHasRecentObject(l)) { chosenLane = l; break; }
+            }
+            if (chosenLane === -1) return; // lanes too crowded near top
+
+            createObjectInLane(chosenLane);
+            lastSpawnLane = chosenLane;
+
+            // schedule next spawn
+            var jitter = (Math.random()*2 - 1) * spawnJitterMs; // +/- jitter
+            nextSpawnAt = nowMs + spawnIntervalMs + jitter;
+        }
+        
+        // Draw objects
+        function drawObjects() {
+            for (var i = 0; i < objects.length; i++) {
+                var obj = objects[i];
+                
+                // Calculate text dimensions
+                ctx.font = 'bold 12px Arial';
+                var textWidth = ctx.measureText(obj.text).width;
+                var textHeight = 16;
+                var padding = 8;
+                
+                // Draw background rectangle (same color for both correct and incorrect)
+                ctx.fillStyle = '#3498db'; // Blue color for all objects
+                ctx.fillRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
+                           textWidth + padding*2, textHeight + padding*2);
+                
+                // Draw border
+                ctx.strokeStyle = '#2c3e50';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
+                             textWidth + padding*2, textHeight + padding*2);
+                
+                // Draw text
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(obj.text, obj.x, obj.y);
+            }
+        }
+        
+        // Update objects
+        function updateObjects() {
+            for (var i = objects.length - 1; i >= 0; i--) {
+                // Objects move toward the car (downward) at game speed
+                objects[i].y += gameSpeed;
+                
+                if (objects[i].y > canvas.height) {
+                    objects.splice(i, 1);
+                }
+            }
+        }
+        
+        // Check collisions
+        function checkCollisions() {
+            for (var i = objects.length - 1; i >= 0; i--) {
+                var obj = objects[i];
+                
+                // Calculate object dimensions for collision
+                ctx.font = 'bold 12px Arial';
+                var textWidth = ctx.measureText(obj.text).width;
+                var padding = 8;
+                var objWidth = textWidth + padding * 2;
+                var objHeight = 16 + padding * 2;
+                
+                // Check collision with car
+                if (obj.y > carY - 25 && obj.y < carY + 25 && 
+                    obj.x > carX - objWidth/2 && obj.x < carX + objWidth/2) {
+                    
+                    if (obj.isCorrect) {
+                        correctCount++;
+                    } else {
+                        wrongCount++;
+                    }
+                    
+                    updateScore();
+                    objects.splice(i, 1);
+                }
+            }
+        }
+        
+        // Tilt setup function - simplified for landscape
+        function enableTiltControls() {
+            console.log('Enabling tilt controls...');
+            
+            if (window.DeviceOrientationEvent) {
+                // Try to request permission on iOS
+                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(function(response) {
+                            console.log('Permission response:', response);
+                            if (response === 'granted') {
+                                startTiltListener();
+                            } else {
+                                console.log('Permission denied');
+                            }
+                        })
+                        .catch(function(error) {
+                            console.log('Permission error:', error);
+                        });
+                } else {
+                    // No permission needed
+                    startTiltListener();
+                }
+            } else {
+                console.log('DeviceOrientationEvent not supported');
+            }
+        }
+        
+        function startTiltListener() {
+            console.log('Starting tilt listener...');
+            var tiltStatus = document.getElementById('tiltStatus');
+            
+            window.addEventListener('deviceorientation', function(e) {
+                if (e.gamma !== null && e.gamma !== undefined && e.beta !== null && e.beta !== undefined) {
+                    // For landscape mode, we need to use beta for left-right steering
+                    // Beta is the front-to-back tilt, which becomes left-right in landscape
+                    tiltX = e.beta;
+                    tiltEnabled = true;
+                    console.log('Tilt detected - Gamma:', e.gamma, 'Beta:', e.beta, 'Alpha:', e.alpha);
+                    if (tiltStatus) {
+                        tiltStatus.innerHTML = 'Tilt: Working (B:' + e.beta.toFixed(1) + ' G:' + e.gamma.toFixed(1) + ')';
+                        tiltStatus.style.background = 'rgba(46, 204, 113, 0.8)';
+                    }
+                }
+            });
+            
+            // Check if tilt is working after 2 seconds
+            setTimeout(function() {
+                if (!tiltEnabled && tiltStatus) {
+                    tiltStatus.innerHTML = 'Tilt: Not Supported';
+                    tiltStatus.style.background = 'rgba(231, 76, 60, 0.8)';
+                }
+            }, 2000);
+        }
+        
+        // Enable tilt button
+        var enableTiltBtn = document.getElementById('enableTiltBtn');
+        if (enableTiltBtn) {
+            enableTiltBtn.addEventListener('click', function() {
+                console.log('Enable tilt button clicked');
+                enableTiltControls();
+                this.style.display = 'none';
+            });
+        }
+        
+        // Touch controls - back to the better version
+        canvas.addEventListener('touchstart', function(e) {
+            e.preventDefault();
+            isDragging = true;
+        });
+        
+        canvas.addEventListener('touchmove', function(e) {
+            e.preventDefault();
+            if (isDragging) {
+                var touch = e.touches[0];
+                var roadWidth = canvas.width * 0.8; // Match the road width
+                var roadX = (canvas.width - roadWidth) / 2;
+                carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, touch.clientX));
+            }
+        });
+        
+        canvas.addEventListener('touchend', function(e) {
+            e.preventDefault();
+            isDragging = false;
+        });
+        
+        // Mouse controls (PC): horizontal drag sets position and steering axis
+        canvas.addEventListener('mousedown', function(e) {
+            isDragging = true;
+            lastPointerX = e.clientX;
+        });
+        
+        canvas.addEventListener('mousemove', function(e) {
+            if (isDragging) {
+                var roadWidth = canvas.width * 0.8;
+                var roadX = (canvas.width - roadWidth) / 2;
+                var dx = lastPointerX !== null ? (e.clientX - lastPointerX) : 0;
+                lastPointerX = e.clientX;
+                // Update steering axis from mouse delta (scaled)
+                inputAxis = Math.max(-1, Math.min(1, dx / 40));
+                // Position follow (optional, keep like before)
+                carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, e.clientX));
+            }
+        });
+        
+        canvas.addEventListener('mouseup', function(e) {
+            isDragging = false;
+            lastPointerX = null;
+            inputAxis = 0; // stop steering when mouse released
+        });
+        
+        // Keyboard controls with steering axis
+        document.addEventListener('keydown', function(e) {
+            var roadWidth = canvas.width * 0.8; // Match the road width
+            var roadX = (canvas.width - roadWidth) / 2;
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+                keyLeftDown = true;
+            }
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+                keyRightDown = true;
+            }
+            // Nudge position for discrete key press feel
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+                carX = Math.max(roadX + 15, carX - 14);
+            }
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+                carX = Math.min(roadX + roadWidth - 15, carX + 14);
+            }
+            // Update axis from keys
+            inputAxis = (keyRightDown ? 1 : 0) + (keyLeftDown ? -1 : 0);
+        });
+
+        document.addEventListener('keyup', function(e) {
+            if (e.code === 'ArrowLeft' || e.code === 'KeyA') {
+                keyLeftDown = false;
+            }
+            if (e.code === 'ArrowRight' || e.code === 'KeyD') {
+                keyRightDown = false;
+            }
+            inputAxis = (keyRightDown ? 1 : 0) + (keyLeftDown ? -1 : 0);
+        });
+        
+        // Update car physics for realistic steering
+        function updateCarPhysics() {
+            var roadWidth = canvas.width * 0.8;
+            var roadX = (canvas.width - roadWidth) / 2;
+            
+            if (tiltEnabled && !isDragging) {
+                // Convert tilt to steering input (like a steering wheel)
+                var tiltFactor = Math.max(-1, Math.min(1, tiltX / 25));
+                carSteering = tiltFactor;
+            } else if (Math.abs(inputAxis) > 0.01) {
+                // Use keyboard/mouse steering axis on desktop
+                carSteering = Math.max(-1, Math.min(1, inputAxis));
+            } else {
+                // No steering input - car continues in current direction (friction slows it)
+                carSteering = 0;
+            }
+            
+            // Apply steering to velocity (like real car physics)
+            var steeringForce = carSteering * 0.15; // Reduced steering sensitivity for stability
+            carVelocity += steeringForce;
+            
+            // Apply stronger friction to gradually slow down when not steering
+            if (Math.abs(carSteering) < 0.1) {
+                carVelocity *= 0.85; // Stronger friction for less wobble
+            }
+            
+            // Limit maximum velocity (reduced for stability)
+            carVelocity = Math.max(-1.5, Math.min(1.5, carVelocity));
+            
+            // Update car position
+            carX += carVelocity;
+            
+            // Keep car within road boundaries
+            carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, carX));
+
+            // Smoothly update visual tilt angle based on velocity
+            var maxTiltDeg = 15; // maximum banking angle
+            var targetAngle = (carVelocity / 1.5) * (maxTiltDeg * Math.PI / 180);
+            carAngle = carAngle || 0;
+            carAngle += (targetAngle - carAngle) * 0.2; // smoothing factor
+        }
+        
+        // Game loop
+        function gameLoop(now) {
+            // If game is over, just show static screen
+            if (gameEnded) {
+                // Clear
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Background
+                ctx.fillStyle = '#27ae60';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Draw static road (no scrolling)
+                drawStaticRoad();
+                
+                // Draw car in center
+                drawCar();
+                
+                // Continue loop but don't update anything
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            // Update car physics
+            updateCarPhysics();
+            
+            // Update road scrolling
+            roadOffset += gameSpeed;
+            staticOffset += gameSpeed * staticParallaxFactor;
+            midOffset += gameSpeed * midParallaxFactor;
+            
+            // Clear
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Background
+            ctx.fillStyle = '#27ae60';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Update
+            maybeSpawn(typeof now === 'number' ? now : performance.now());
+            updateObjects();
+            checkCollisions();
+            
+            // Draw
+            drawRoad();
+            drawCar();
+            drawObjects();
+            
+            // Continue
+            requestAnimationFrame(gameLoop);
+        }
+        
+        // Load assets (backgrounds + vehicle)
+        loadAssets();
+        
+        // Start the game loop (but don't spawn objects until content is uploaded)
+        console.log('Game loop starting...');
+        updateScore();
+        // Initialize next spawn time and start loop
+        nextSpawnAt = performance.now() + 600;
+        requestAnimationFrame(gameLoop);
+        
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            setCanvasSize();
+            carX = canvas.width / 2;
+            carY = canvas.height - 100;
+            debugInfo.innerHTML = 'Canvas: ' + canvas.width + 'x' + canvas.height;
+        });
+        
+        // Full screen setup
+        function requestFullScreen() {
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen();
+            } else if (document.documentElement.webkitRequestFullscreen) {
+                document.documentElement.webkitRequestFullscreen();
+            } else if (document.documentElement.msRequestFullscreen) {
+                document.documentElement.msRequestFullscreen();
+            }
+        }
+        
+        // Hide address bar and try full screen
+        window.addEventListener('load', function() {
+            setTimeout(function() {
+                window.scrollTo(0, 1);
+                // Try to go full screen after a short delay
+                setTimeout(requestFullScreen, 500);
+            }, 0);
+        });
+        
+        // Add full screen button
+        var fullscreenBtn = document.createElement('button');
+        fullscreenBtn.innerHTML = 'Full Screen';
+        fullscreenBtn.style.cssText = 'position: absolute; top: 140px; left: 10px; background: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;';
+        fullscreenBtn.addEventListener('click', requestFullScreen);
+        document.body.appendChild(fullscreenBtn);
+    </script>
+</body>
+</html>
