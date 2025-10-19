@@ -1,0 +1,27 @@
+{
+  "question": "Collect only things that are 'big data'",
+  "correct": [
+    "Social media activity logs",
+    "IoT sensor streams from thousands of devices",
+    "Clickstream data from a major e‑commerce site",
+    "Web server logs at internet scale",
+    "Satellite imagery archives updated daily",
+    "Global financial transaction streams",
+    "Telemetry from millions of connected cars",
+    "Genome sequencing datasets across populations",
+    "Email delivery logs from a large provider",
+    "Ad impression and auction logs"
+  ],
+  "incorrect": [
+    "A 2 GB video file",
+    "A ZIP of vacation photos",
+    "A single machine's log file",
+    "An Excel sheet with thousands of rows",
+    "A local database with 100k records",
+    "A PDF archive of reports",
+    "A full hard‑drive backup",
+    "One HD movie file",
+    "A large PSD design file",
+    "A 500 MB CSV export"
+  ]
+}
