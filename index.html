@@ -230,6 +230,9 @@
         // Vehicle sprite
         var vehicleImage = null;
         var vehicleLoaded = false;
+        // Object background sprite
+        var objectBgImage = null;
+        var objectBgLoaded = false;
         
         // Spawn control (consistent pacing)
         var spawnIntervalMs = 1800; // base interval between spawns (increased for more thinking time)
@@ -539,6 +542,22 @@
             } catch (e) {
                 vehicleLoaded = false;
             }
+
+            // Object background image
+            objectBgImage = new Image();
+            objectBgImage.onload = function() {
+                objectBgLoaded = true;
+                console.log('Object background loaded');
+            };
+            objectBgImage.onerror = function() {
+                objectBgLoaded = false;
+                console.log('Object background failed to load, using rectangle fallback');
+            };
+            try {
+                objectBgImage.src = 'object_background.png';
+            } catch (e) {
+                objectBgLoaded = false;
+            }
         }
         
         // Draw road with two layers (static + scrolling overlay)
@@ -818,34 +837,56 @@
             nextSpawnAt = nowMs + spawnIntervalMs + jitter;
         }
         
+        // Compute object card size (keeps 500x300 aspect ratio by default)
+        function getObjectCardSize() {
+            var baseH = Math.max(60, Math.round(canvas.height * 0.09));
+            var ratio = 500 / 300;
+            if (objectBgLoaded && objectBgImage && objectBgImage.width && objectBgImage.height) {
+                ratio = objectBgImage.width / objectBgImage.height;
+            }
+            var w = Math.round(baseH * ratio);
+            return { w: w, h: baseH };
+        }
+
         // Draw objects
         function drawObjects() {
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
-                
-                // Calculate text dimensions
-                ctx.font = 'bold 12px Arial';
-                var textWidth = ctx.measureText(obj.text).width;
-                var textHeight = 16;
-                var padding = 8;
-                
-                // Draw background rectangle (same color for both correct and incorrect)
-                ctx.fillStyle = '#3498db'; // Blue color for all objects
-                ctx.fillRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
-                           textWidth + padding*2, textHeight + padding*2);
-                
-                // Draw border
-                ctx.strokeStyle = '#2c3e50';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
-                             textWidth + padding*2, textHeight + padding*2);
-                
-                // Draw text
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Arial';
+                var sz = getObjectCardSize();
+                var w = sz.w, h = sz.h;
+
+                // Draw background image or fallback
+                if (objectBgLoaded) {
+                    ctx.drawImage(objectBgImage, obj.x - w/2, obj.y - h/2, w, h);
+                } else {
+                    ctx.fillStyle = '#3498db';
+                    ctx.fillRect(obj.x - w/2, obj.y - h/2, w, h);
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(obj.x - w/2, obj.y - h/2, w, h);
+                }
+
+                // Draw centered text with autosize to fit width
+                var maxFont = Math.max(12, Math.floor(h * 0.28));
+                var minFont = 10;
+                var fontSize = maxFont;
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
+                do {
+                    ctx.font = 'bold ' + fontSize + 'px Arial';
+                    var tw = ctx.measureText(obj.text).width;
+                    if (tw <= w * 0.86 || fontSize <= minFont) break;
+                    fontSize -= 1;
+                } while (fontSize > minFont);
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0,0,0,0.45)';
+                ctx.shadowBlur = 2;
+                ctx.shadowOffsetY = 1;
                 ctx.fillText(obj.text, obj.x, obj.y);
+                // Reset shadow for other drawings
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
             }
         }
         
@@ -865,16 +906,13 @@
         function checkCollisions() {
             for (var i = objects.length - 1; i >= 0; i--) {
                 var obj = objects[i];
+                // Object dimensions based on card size
+                var card = getObjectCardSize();
+                var objWidth = card.w;
+                var objHeight = card.h;
                 
-                // Calculate object dimensions for collision
-                ctx.font = 'bold 12px Arial';
-                var textWidth = ctx.measureText(obj.text).width;
-                var padding = 8;
-                var objWidth = textWidth + padding * 2;
-                var objHeight = 16 + padding * 2;
-                
-                // Check collision with car
-                if (obj.y > carY - 25 && obj.y < carY + 25 && 
+                // Check collision with car (simple AABB approximation)
+                if (obj.y > carY - 25 && obj.y < carY + 25 &&
                     obj.x > carX - objWidth/2 && obj.x < carX + objWidth/2) {
                     
                     if (obj.isCorrect) {
