@@ -191,7 +191,7 @@
         var tiltX = 0;
         var tiltEnabled = false;
         var roadOffset = 0; // For scrolling road effect
-        var baseGameSpeed = 6; // Faster base forward speed (device-independent)
+        var baseGameSpeed = 5; // Slightly reduced forward speed (device-independent)
         var gameSpeed = baseGameSpeed; // Forward speed in px/frame@60; scaled by dt
         var carSteering = 0; // Car's current steering direction (-1 to 1)
         var carVelocity = 0; // Car's horizontal velocity
@@ -849,8 +849,8 @@
             return { w: w, h: baseH };
         }
 
-        // Wrap text into up to maxLines to fit maxWidth; returns array of lines
-        function wrapTextLines(ctx, text, maxWidth, maxLines) {
+        // Wrap text into lines to fit maxWidth; returns array of lines (no truncation)
+        function wrapTextLines(ctx, text, maxWidth) {
             var words = String(text || '').split(/\s+/);
             var lines = [];
             var current = '';
@@ -860,8 +860,8 @@
                     current = test;
                 } else {
                     if (current) lines.push(current);
-                    else {
-                        // Very long single word: hard-break
+                    // handle extremely long single word by hard-break
+                    if (!current) {
                         var word = words[i];
                         var chunk = '';
                         for (var c = 0; c < word.length; c++) {
@@ -869,45 +869,39 @@
                             if (ctx.measureText(t2).width <= maxWidth) chunk = t2; else { lines.push(chunk); chunk = word[c]; }
                         }
                         current = chunk;
+                    } else {
+                        current = words[i];
                     }
-                    current = words[i];
                 }
-                if (lines.length >= maxLines) break;
             }
-            if (lines.length < maxLines && current) lines.push(current);
-            if (lines.length > maxLines) {
-                // Collapse overflow into last line with ellipsis
-                var keep = lines.slice(0, maxLines - 1).join(' ');
-                var rest = words.slice(words.indexOf(lines[maxLines - 1].split(/\s+/)[0])).join(' ');
-                var last = lines[maxLines - 1] || '';
-                var ell = '…';
-                while (ctx.measureText(last + ell).width > maxWidth && last.length > 0) {
-                    last = last.slice(0, -1);
-                }
-                lines = lines.slice(0, maxLines - 1);
-                lines.push(last + ell);
-            }
+            if (current) lines.push(current);
             return lines;
         }
 
-        // Fit text: auto font size and wrapped lines to fit within card
+        // Fit text: auto font size and wrapped lines to fit within card, no truncation
         function layoutObjectText(ctx, text, w, h) {
-            var maxFont = Math.max(16, Math.floor(h * 0.36));
-            var minFont = 12;
+            var maxFont = Math.max(16, Math.floor(h * 0.34));
+            var minFont = 10; // allow smaller fonts for very long strings
             var chosen = minFont;
             var lines = [String(text || '')];
             for (var fs = maxFont; fs >= minFont; fs--) {
                 ctx.font = 'bold ' + fs + 'px Arial';
-                var candidate = wrapTextLines(ctx, text, w * 0.86, 3); // up to 3 rows
+                var candidate = wrapTextLines(ctx, text, w * 0.86);
                 var lineHeight = Math.round(fs * 1.12);
                 var totalH = candidate.length * lineHeight;
-                if (candidate.length <= 3 && totalH <= h * 0.8) {
+                if (totalH <= h * 0.82) { // fit inside card with a small margin
                     chosen = fs;
                     lines = candidate;
                     break;
                 }
             }
-            return { fontSize: chosen, lines: lines, lineHeight: Math.round(chosen * 1.12) };
+            // If still too tall at min font, increase lineHeight compression slightly
+            var lineHeight = Math.round(chosen * 1.08);
+            var totalH = lines.length * lineHeight;
+            if (totalH > h * 0.9) {
+                lineHeight = Math.max(Math.round(chosen * 1.0), Math.floor((h * 0.9) / Math.max(1, lines.length)));
+            }
+            return { fontSize: chosen, lines: lines, lineHeight: lineHeight };
         }
  
         // Draw objects
