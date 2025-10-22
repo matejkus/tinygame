@@ -109,11 +109,41 @@
                 padding: 6px;
             }
         }
+
+        /* Intro menu overlay */
+        #menuOverlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            z-index: 150;
+        }
+        .menuButton {
+            width: min(42vw, 480px);
+            height: clamp(60px, 12vh, 120px);
+            background: url('button.png') center / contain no-repeat;
+            color: #ffffff;
+            font-size: clamp(18px, 3.2vw, 30px);
+            font-weight: bold;
+            border: none;
+            outline: none;
+            background-color: transparent;
+            padding: 0 24px;
+            cursor: pointer;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
+        <div id="menuOverlay">
+            <button id="btnStart" class="menuButton">Start the game</button>
+            <button id="btnSecond" class="menuButton"></button>
+        </div>
         <div id="questionDisplay">Collect only correct Python!</div>
         <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
         <div id="instructions">Tilt your phone (mobile) or use keyboard arrows (PC).</div>
@@ -247,6 +277,7 @@
         var contentCorrect = [];
         var contentIncorrect = [];
         var gameStarted = false;
+        var inMenu = true;
         
         // Track which items have been used (to avoid repeats)
         var usedCorrectItems = [];
@@ -260,7 +291,7 @@
         
         // Show loading prompt initially
         function showLoadingPrompt() {
-            setQuestion('Loading content...');
+            setQuestion('');
         }
         showLoadingPrompt();
 
@@ -409,13 +440,22 @@
             
             setQuestion(contentQuestion);
             
-            startGame();
+            // Do not auto-start; show menu first
+            // startGame();
         }
         
         function startGame() {
             gameStarted = true;
+            inMenu = false;
             gameEnded = false;
             console.log('Game started with content:', contentQuestion);
+            // Ensure UI displays
+            document.getElementById('questionDisplay').style.display = 'block';
+            document.getElementById('scoreDisplay').style.display = 'block';
+            document.getElementById('instructions').style.display = 'block';
+            var menu = document.getElementById('menuOverlay');
+            if (menu) menu.style.display = 'none';
+            setQuestion(contentQuestion);
         }
         
         function endGame() {
@@ -568,16 +608,21 @@
                 ctx.fillStyle = '#27ae60';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             } else {
-                drawScrollingStaticBackground();
+                if (inMenu) {
+                    // In menu: keep static background still
+                    drawStaticBackgroundScaled();
+                } else {
+                    drawScrollingStaticBackground();
+                }
             }
 
-            if (midLoaded) {
+            if (!inMenu && midLoaded) {
                 drawScrollingMidOverlay();
             }
 
-            if (scrollLoaded) {
+            if (!inMenu && scrollLoaded) {
                 drawScrollingOverlay();
-            } else {
+            } else if (!inMenu) {
                 // Fallback to original drawn road lines if overlay missing
                 drawDrawnRoad();
             }
@@ -673,7 +718,7 @@
             ctx.stroke();
         }
         
-        // Draw static road (no scrolling) for game over screen
+        // Draw static road (no scrolling) for game over or menu screen
         function drawStaticRoad() {
             if (staticLoaded) {
                 drawStaticBackgroundScaled();
@@ -681,6 +726,20 @@
                 // Fallback to drawn static road
                 drawStaticDrawnRoad();
             }
+        }
+
+        // Helper: draw static background covering screen (no scrolling)
+        function drawStaticBackgroundScaled() {
+            var iw = staticBackground.width;
+            var ih = staticBackground.height;
+            var scaleX = canvas.width / iw;
+            var scaleY = canvas.height / ih;
+            var scale = Math.max(scaleX, scaleY);
+            var sw = iw * scale;
+            var sh = ih * scale;
+            var offsetX = (canvas.width - sw) / 2;
+            var offsetY = (canvas.height - sh) / 2;
+            ctx.drawImage(staticBackground, offsetX, offsetY, sw, sh);
         }
         
         // Fallback: static drawn road
@@ -1266,7 +1325,7 @@
         loadAssets();
         tryLoadContent();
         
-        // Start the game loop (but don't spawn objects until content is uploaded)
+        // Start the game loop (menu first; gameplay starts on button click)
         console.log('Game loop starting...');
         updateScore();
         // Initialize next spawn time and start loop
@@ -1301,12 +1360,38 @@
             }, 0);
         });
         
-        // Add full screen button
+        // Add full screen button (keep visible)
         var fullscreenBtn = document.createElement('button');
         fullscreenBtn.innerHTML = 'Full Screen';
-        fullscreenBtn.style.cssText = 'position: absolute; top: 140px; left: 10px; background: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;';
+        fullscreenBtn.style.cssText = 'position: absolute; top: 140px; left: 10px; background: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 160;';
         fullscreenBtn.addEventListener('click', requestFullScreen);
         document.body.appendChild(fullscreenBtn);
+
+        // Menu button wiring
+        var btnStart = document.getElementById('btnStart');
+        if (btnStart) {
+            btnStart.addEventListener('click', function() {
+                // Require content; if not loaded yet, load sample to proceed
+                if (!contentCorrect.length || !contentIncorrect.length) {
+                    var sample = getSampleContent();
+                    applyUploadedContent(sample);
+                }
+                startGame();
+            });
+        }
+        var btnSecond = document.getElementById('btnSecond');
+        if (btnSecond) {
+            btnSecond.addEventListener('click', function(){ /* placeholder */ });
+        }
+
+        // Hide gameplay UI while in menu
+        (function initMenuUI(){
+            var menu = document.getElementById('menuOverlay');
+            if (menu) menu.style.display = 'flex';
+            document.getElementById('questionDisplay').style.display = 'none';
+            document.getElementById('scoreDisplay').style.display = 'none';
+            document.getElementById('instructions').style.display = 'none';
+        })();
     </script>
 </body>
 </html>
