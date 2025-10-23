@@ -89,6 +89,7 @@
             padding: 5px;
             font-size: 10px;
             z-index: 100;
+            display: none;
         }
         
         /* Always landscape - no portrait handling */
@@ -138,6 +139,15 @@
             align-items: center;
             justify-content: center;
             white-space: nowrap; /* single line; JS scales to fit */
+            overflow: hidden; /* hide overflow if any */
+        }
+
+        .menuButtonLabel {
+            display: inline-block;
+            transform-origin: center center;
+            line-height: 1;
+            pointer-events: none;
+            white-space: nowrap;
         }
 
         /* Fullscreen toggle button (image) */
@@ -160,19 +170,13 @@
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="menuOverlay">
-            <button id="btnStart" class="menuButton">Start the game</button>
+            <button id="btnStart" class="menuButton"><span class="menuButtonLabel">Start the game</span></button>
             <button id="btnSecond" class="menuButton"></button>
         </div>
         <div id="questionDisplay">Collect only correct Python!</div>
         <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
         <div id="instructions">Tilt your phone (mobile) or use keyboard arrows (PC).</div>
-        <div id="debugInfo">Loading...</div>
-        <div id="tiltStatus" style="position: absolute; top: 110px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; font-size: 10px; z-index: 100;">
-            Tilt: Not Working
-        </div>
-        <button id="enableTiltBtn" style="position: absolute; top: 80px; left: 10px; background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
-            Enable Tilt
-        </button>
+        <div id="debugInfo" style="display:none">Loading...</div>
     </div>
     
     <!-- Optional: offline content loader. Create content.js that sets window.GAME_CONTENT = { question, correct, incorrect } -->
@@ -232,7 +236,8 @@
         
         // Game variables
         var carX = canvas.width / 2;
-        var carY = canvas.height - 100;
+        var carYRatio = 0.7; // car center at ~70% of screen height (lower third)
+        var carY = Math.round(canvas.height * carYRatio);
         var objects = [];
         var correctCount = 0;
         var wrongCount = 0;
@@ -1060,35 +1065,22 @@
         
         // Tilt setup function - simplified for landscape
         function enableTiltControls() {
-            console.log('Enabling tilt controls...');
-            
-            if (window.DeviceOrientationEvent) {
-                // Try to request permission on iOS
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(function(response) {
-                            console.log('Permission response:', response);
-                            if (response === 'granted') {
-                                startTiltListener();
-                            } else {
-                                console.log('Permission denied');
-                            }
-                        })
-                        .catch(function(error) {
-                            console.log('Permission error:', error);
-                        });
-                } else {
-                    // No permission needed
-                    startTiltListener();
-                }
+            if (!window.DeviceOrientationEvent) return;
+            // Auto-enable; request permission on iOS if required
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function(response) {
+                        if (response === 'granted') startTiltListener();
+                    })
+                    .catch(function(){});
             } else {
-                console.log('DeviceOrientationEvent not supported');
+                startTiltListener();
             }
         }
         
         function startTiltListener() {
             console.log('Starting tilt listener...');
-            var tiltStatus = document.getElementById('tiltStatus');
+            var tiltStatus = null; // no on-screen status
             
             window.addEventListener('deviceorientation', function(e) {
                 if (e.gamma !== null && e.gamma !== undefined && e.beta !== null && e.beta !== undefined) {
@@ -1102,31 +1094,17 @@
 
                     tiltEnabled = true;
                     console.log('Tilt detected - Gamma:', e.gamma, 'Beta:', e.beta, 'Alpha:', e.alpha);
-                    if (tiltStatus) {
-                        tiltStatus.innerHTML = 'Tilt: Working (B:' + e.beta.toFixed(1) + ' G:' + e.gamma.toFixed(1) + ')';
-                        tiltStatus.style.background = 'rgba(46, 204, 113, 0.8)';
-                    }
+                    // no on-screen status
                 }
             });
             
             // Check if tilt is working after 2 seconds
-            setTimeout(function() {
-                if (!tiltEnabled && tiltStatus) {
-                    tiltStatus.innerHTML = 'Tilt: Not Supported';
-                    tiltStatus.style.background = 'rgba(231, 76, 60, 0.8)';
-                }
-            }, 2000);
+            setTimeout(function() { /* no UI status */ }, 2000);
         }
         
         // Enable tilt button
-        var enableTiltBtn = document.getElementById('enableTiltBtn');
-        if (enableTiltBtn) {
-            enableTiltBtn.addEventListener('click', function() {
-                console.log('Enable tilt button clicked');
-                enableTiltControls();
-                this.style.display = 'none';
-            });
-        }
+        // Auto-enable tilt on load (may require user gesture on iOS; we also call after menu start)
+        enableTiltControls();
         
         // Touch controls disabled per user request (tilt + keyboard only)
         // canvas.addEventListener('touchstart', function(e) {
@@ -1301,8 +1279,10 @@
                 return;
             }
             
-            // Update car physics
-            updateCarPhysics();
+            // Update car physics only during gameplay
+            if (!inMenu) {
+                updateCarPhysics();
+            }
             
             // Update road scrolling (delta-time based)
             roadOffset += gameSpeed * frameDtFactor;
@@ -1323,8 +1303,10 @@
             
             // Draw
             drawRoad();
-            drawCar();
-            drawObjects();
+            if (!inMenu) {
+                drawCar();
+                drawObjects();
+            }
             
             // Live debug overlay
             if (showDebugValues && debugInfo) {
@@ -1355,7 +1337,7 @@
         window.addEventListener('resize', function() {
             setCanvasSize();
             carX = canvas.width / 2;
-            carY = canvas.height - 100;
+            carY = Math.round(canvas.height * carYRatio);
             debugInfo.innerHTML = 'Canvas: ' + canvas.width + 'x' + canvas.height;
         });
         
@@ -1413,6 +1395,8 @@
                     var sample = getSampleContent();
                     applyUploadedContent(sample);
                 }
+                // Try enabling tilt again after a user gesture (needed for iOS)
+                enableTiltControls();
                 startGame();
             });
         }
@@ -1433,26 +1417,33 @@
 
         // Dynamically fit button text to available width/height
         function fitMenuText() {
-            var buttons = [document.getElementById('btnStart'), document.getElementById('btnSecond')];
-            for (var i = 0; i < buttons.length; i++) {
-                var b = buttons[i];
-                if (!b) continue;
-                // start from a large size and shrink
-                var maxPx = Math.floor(b.clientHeight * 0.36);
-                var minPx = 12;
-                var targetWidth = b.clientWidth * 0.78; // allow side padding
-                var size = maxPx;
-                var text = b.textContent || b.innerText || '';
-                // create measuring context
+            var btnStart = document.getElementById('btnStart');
+            var btnSecond = document.getElementById('btnSecond');
+            fitOne(btnStart);
+            fitOne(btnSecond);
+            function fitOne(button) {
+                if (!button) return;
+                var label = button.querySelector('.menuButtonLabel');
+                if (!label) return;
+                label.style.transform = 'scale(1)';
+                label.style.fontSize = Math.floor(button.clientHeight * 0.28) + 'px';
+                // Measure and scale down if needed using CSS transform for reliability
+                var safeW = button.clientWidth * 0.50;  // smaller inner width -> bigger side margins
+                var safeH = button.clientHeight * 0.26; // smaller inner height -> bigger top/bottom margins
+                // Temporarily set to auto to measure
+                var computed = window.getComputedStyle(label);
+                var fontSize = parseFloat(computed.fontSize) || 24;
                 ctx.save();
-                while (size > minPx) {
-                    ctx.font = 'bold ' + size + 'px Arial';
-                    var w = ctx.measureText(text).width;
-                    if (w <= targetWidth) break;
-                    size -= 1;
-                }
+                ctx.font = 'bold ' + fontSize + 'px Arial';
+                var text = label.textContent || '';
+                var textW = ctx.measureText(text).width;
                 ctx.restore();
-                b.style.fontSize = size + 'px';
+                var textH = fontSize; // ~1em
+                var scaleX = safeW > 0 ? (safeW / textW) : 1;
+                var scaleY = safeH > 0 ? (safeH / textH) : 1;
+                var marginFactor = 0.90; // extra breathing room
+                var scale = Math.min(1, scaleX, scaleY) * marginFactor;
+                label.style.transform = 'scale(' + scale + ')';
             }
         }
         window.addEventListener('resize', fitMenuText);
