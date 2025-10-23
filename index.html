@@ -122,11 +122,11 @@
             z-index: 150;
         }
         .menuButton {
-            width: min(42vw, 480px);
-            height: clamp(60px, 12vh, 120px);
+            width: min(56vw, 640px);
+            height: clamp(80px, 16vh, 160px);
             background: url('button.png') center / contain no-repeat;
             color: #ffffff;
-            font-size: clamp(18px, 3.2vw, 30px);
+            font-size: 28px; /* will be auto-fitted via JS */
             font-weight: bold;
             border: none;
             outline: none;
@@ -134,6 +134,25 @@
             padding: 0 24px;
             cursor: pointer;
             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* single line; JS scales to fit */
+        }
+
+        /* Fullscreen toggle button (image) */
+        #fsToggleBtn {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            width: clamp(48px, 8vh, 84px);
+            height: clamp(48px, 8vh, 84px);
+            background: url('full_screen_button.png') center / contain no-repeat;
+            border: none;
+            padding: 0;
+            background-color: transparent;
+            cursor: pointer;
+            z-index: 200;
         }
     </style>
 </head>
@@ -1360,12 +1379,30 @@
             }, 0);
         });
         
-        // Add full screen button (keep visible)
+        // Add fullscreen toggle image button in bottom-right
         var fullscreenBtn = document.createElement('button');
-        fullscreenBtn.innerHTML = 'Full Screen';
-        fullscreenBtn.style.cssText = 'position: absolute; top: 140px; left: 10px; background: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 160;';
-        fullscreenBtn.addEventListener('click', requestFullScreen);
+        fullscreenBtn.id = 'fsToggleBtn';
+        fullscreenBtn.addEventListener('click', function(){
+            if (!document.fullscreenElement && !(document.webkitFullscreenElement || document.msFullscreenElement)) {
+                requestFullScreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitCancelFullScreen) document.webkitCancelFullScreen();
+                else if (document.msExitFullscreen) document.msExitFullscreen();
+            }
+        });
         document.body.appendChild(fullscreenBtn);
+
+        function updateFsButton() {
+            var btn = document.getElementById('fsToggleBtn');
+            if (!btn) return;
+            var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+            btn.style.backgroundImage = isFs ? "url('minimize_screen_button.png')" : "url('full_screen_button.png')";
+        }
+        document.addEventListener('fullscreenchange', updateFsButton);
+        document.addEventListener('webkitfullscreenchange', updateFsButton);
+        document.addEventListener('msfullscreenchange', updateFsButton);
+        updateFsButton();
 
         // Menu button wiring
         var btnStart = document.getElementById('btnStart');
@@ -1391,7 +1428,34 @@
             document.getElementById('questionDisplay').style.display = 'none';
             document.getElementById('scoreDisplay').style.display = 'none';
             document.getElementById('instructions').style.display = 'none';
+            fitMenuText();
         })();
+
+        // Dynamically fit button text to available width/height
+        function fitMenuText() {
+            var buttons = [document.getElementById('btnStart'), document.getElementById('btnSecond')];
+            for (var i = 0; i < buttons.length; i++) {
+                var b = buttons[i];
+                if (!b) continue;
+                // start from a large size and shrink
+                var maxPx = Math.floor(b.clientHeight * 0.36);
+                var minPx = 12;
+                var targetWidth = b.clientWidth * 0.78; // allow side padding
+                var size = maxPx;
+                var text = b.textContent || b.innerText || '';
+                // create measuring context
+                ctx.save();
+                while (size > minPx) {
+                    ctx.font = 'bold ' + size + 'px Arial';
+                    var w = ctx.measureText(text).width;
+                    if (w <= targetWidth) break;
+                    size -= 1;
+                }
+                ctx.restore();
+                b.style.fontSize = size + 'px';
+            }
+        }
+        window.addEventListener('resize', fitMenuText);
     </script>
 </body>
 </html>
