@@ -179,8 +179,7 @@
         <div id="debugInfo" style="display:none">Loading...</div>
     </div>
     
-    <!-- Optional: offline content loader. Create content.js that sets window.GAME_CONTENT = { question, correct, incorrect } -->
-    <script src="content.js"></script>
+    <!-- Content is loaded on-demand per menu selection (JS -> JSON -> CSV). -->
     
     <script>
         console.log('Simple game starting...');
@@ -321,59 +320,77 @@
         }
         showLoadingPrompt();
 
-        // Auto content loading at startup (JSON or CSV from repo)
-        function tryLoadContent() {
-            // 1) If content provided via content.js (works over file://), use it
-            if (window && window.GAME_CONTENT) {
-                try {
-                    applyUploadedContent(window.GAME_CONTENT);
-                    return;
-                } catch (e) {
-                    console.error('Invalid GAME_CONTENT format', e);
-                    setQuestion('Invalid GAME_CONTENT provided.');
-                    return;
+        // On-demand content loading per menu choice: try JS -> JSON -> CSV for a base name
+        function loadContentForBase(baseName) {
+            // 1) JS via global window.GAME_CONTENT from <baseName>.js
+            function tryJS(next) {
+                var jsUrl = baseName + '.js';
+                var script = document.createElement('script');
+                var timedOut = false;
+                var timer = setTimeout(function(){ timedOut = true; cleanup(); next(); }, 1500);
+                function cleanup(){
+                    clearTimeout(timer);
+                    if (script && script.parentNode) script.parentNode.removeChild(script);
                 }
+                script.onload = function(){
+                    cleanup();
+                    try {
+                        if (window && window.GAME_CONTENT) {
+                            applyUploadedContent(window.GAME_CONTENT);
+                            // clear it so subsequent loads don't reuse
+                            try { delete window.GAME_CONTENT; } catch(e) { window.GAME_CONTENT = undefined; }
+                            // success -> start
+                            enableTiltControls();
+                            startGame();
+                        } else {
+                            next();
+                        }
+                    } catch(e) {
+                        console.error('Invalid GAME_CONTENT in', jsUrl, e);
+                        next();
+                    }
+                };
+                script.onerror = function(){ cleanup(); next(); };
+                script.src = jsUrl + '?_=' + Date.now();
+                document.body.appendChild(script);
             }
 
-            if (location && location.protocol === 'file:') {
-                console.error('Cannot fetch local files over file:// due to browser restrictions.');
-                setQuestion('Cannot load content over file://. Please serve the folder via a local web server or deploy (e.g., GitHub Pages).');
-                return;
+            // 2) JSON
+            function tryJSON(next) {
+                if (location && location.protocol === 'file:') { next(); return; }
+                var url = baseName + '.json';
+                fetch(url, { cache: 'no-store' })
+                    .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+                    .then(function(data){
+                        applyUploadedContent(data);
+                        enableTiltControls();
+                        startGame();
+                    })
+                    .catch(function(){ next(); });
             }
-            // Prefer JSON if present, otherwise CSV; filenames can be changed in repo
-            var candidates = ['content.json', 'content.csv'];
-            (function tryNext(idx){
-                if (idx >= candidates.length) {
-                    console.error('No content file found.');
-                    setQuestion('No content found. Please add content.json or content.csv.');
+
+            // 3) CSV
+            function tryCSV(next) {
+                if (location && location.protocol === 'file:') {
+                    setQuestion('Cannot load content over file://. Please serve the folder via a local web server or deploy.');
                     return;
                 }
-                var url = candidates[idx];
+                var url = baseName + '.csv';
                 fetch(url, { cache: 'no-store' })
-                    .then(function(res){
-                        if (!res.ok) throw new Error('HTTP ' + res.status);
-                        return res.text();
-                    })
+                    .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
                     .then(function(text){
-                        try {
-                            if (/^\s*\{/.test(text)) {
-                                var data = JSON.parse(text);
-                                applyUploadedContent(data);
-                            } else {
-                                var data = parseCSV(text);
-                                applyUploadedContent(data);
-                            }
-                        } catch (e) {
-                            console.error('Failed to parse content file', url, e);
-                            setQuestion('Failed to parse ' + url + '.');
-                        }
+                        var data = parseCSV(text);
+                        applyUploadedContent(data);
+                        enableTiltControls();
+                        startGame();
                     })
-                    .catch(function(err){
-                        console.error('Fetch failed for', url, err);
-                        // try next candidate
-                        tryNext(idx+1);
+                    .catch(function(){
+                        setQuestion('No content found for "' + baseName + '". Provide ' + baseName + '.js/.json/.csv.');
                     });
-            })(0);
+            }
+
+            // Chain JS -> JSON -> CSV
+            tryJS(function(){ tryJSON(function(){ tryCSV(function(){ /* unreachable */ }); }); });
         }
 
         // Sample content (Big Data topic)
@@ -516,10 +533,43 @@
         }
 
         function parseCSV(csvText) {
+            // Helpers for CSV parsing with quotes
+            function splitCSVLine(line) {
+                var out = [];
+                var field = '';
+                var inQuotes = false;
+                for (var i = 0; i < line.length; i++) {
+                    var ch = line[i];
+                    if (ch === '"') {
+                        if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+                            field += '"'; // escaped quote
+                            i++; // skip next
+                        } else {
+                            inQuotes = !inQuotes; // toggle quoting
+                        }
+                    } else if (ch === ',' && !inQuotes) {
+                        out.push(field);
+                        field = '';
+                    } else {
+                        field += ch;
+                    }
+                }
+                out.push(field);
+                return out;
+            }
+            function unquoteCSVField(s) {
+                if (typeof s !== 'string') return s;
+                var v = s.trim();
+                if (v.length >= 2 && v[0] === '"' && v[v.length - 1] === '"') {
+                    v = v.substring(1, v.length - 1).replace(/""/g, '"');
+                }
+                return v;
+            }
+
             // Expected header: type,text OR question,text (question row optional)
             var lines = csvText.split(/\r?\n/).filter(function(l){return l.trim().length>0;});
             if (!lines.length) throw new Error('Empty CSV');
-            var header = lines[0].split(',').map(function(h){return h.trim().toLowerCase();});
+            var header = splitCSVLine(lines[0]).map(function(h){return unquoteCSVField(h).trim().toLowerCase();});
             var idxType = header.indexOf('type');
             var idxText = header.indexOf('text');
             var idxQuestion = header.indexOf('question');
@@ -529,13 +579,13 @@
             var question = 'Collect the correct items!';
             for (var i=1;i<lines.length;i++) {
                 var raw = lines[i];
-                var parts = raw.split(',');
+                var parts = splitCSVLine(raw);
                 if (parts.length < 1) continue;
                 if (idxQuestion !== -1 && parts[idxQuestion] && parts[idxQuestion].trim().length>0) {
-                    question = parts[idxQuestion].trim();
+                    question = unquoteCSVField(parts[idxQuestion]);
                 }
-                var t = parts[idxText] ? parts[idxText].trim() : '';
-                var ty = idxType !== -1 && parts[idxType] ? parts[idxType].trim().toLowerCase() : '';
+                var t = parts[idxText] ? unquoteCSVField(parts[idxText]) : '';
+                var ty = idxType !== -1 && parts[idxType] ? unquoteCSVField(parts[idxType]).toLowerCase() : '';
                 if (!t) continue;
                 if (ty === 'correct') corr.push(t);
                 else if (ty === 'incorrect') inc.push(t);
@@ -1380,7 +1430,6 @@
         
         // Load assets (backgrounds + vehicle) and content
         loadAssets();
-        tryLoadContent();
         
         // Start the game loop (menu first; gameplay starts on button click)
         console.log('Game loop starting...');
@@ -1446,13 +1495,13 @@
         var btnStart = document.getElementById('btnStart');
         if (btnStart) {
             btnStart.addEventListener('click', function() {
-                loadCSVThenStart('content.csv'); // Umělá inteligence
+                loadContentForBase('content'); // Umělá inteligence
             });
         }
         var btnSecond = document.getElementById('btnSecond');
         if (btnSecond) {
             btnSecond.addEventListener('click', function(){
-                loadCSVThenStart('content_2.csv'); // Big Data
+                loadContentForBase('content_2'); // Big Data
             });
         }
 
