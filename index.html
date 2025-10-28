@@ -174,7 +174,7 @@
 			<button id="btnSecond" class="menuButton"><span class="menuButtonLabel">Big Data</span></button>
         </div>
         <div id="questionDisplay">Collect only correct Python!</div>
-        <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
+        <div id="scoreDisplay">Tvůj výsledný dataset: Správné: 0 | Nesprávné: 0 | Chybějící: 0</div>
         <div id="instructions">Tilt your phone (mobile) or use keyboard arrows (PC).</div>
         <div id="debugInfo" style="display:none">Loading...</div>
     </div>
@@ -241,6 +241,7 @@
         var objects = [];
         var correctCount = 0;
         var wrongCount = 0;
+        var missedCorrectCount = 0;
         var isDragging = false;
         var tiltX = 0;
         var tiltEnabled = false;
@@ -307,6 +308,7 @@
         var usedCorrectItems = [];
         var usedIncorrectItems = [];
         var gameEnded = false;
+        var spawningFinished = false; // true when all content items have been spawned
 
         function setQuestion(text) {
             var q = document.getElementById('questionDisplay');
@@ -472,26 +474,45 @@
             gameStarted = true;
             inMenu = false;
             gameEnded = false;
+            spawningFinished = false;
+            correctCount = 0;
+            wrongCount = 0;
+            missedCorrectCount = 0;
             console.log('Game started with content:', contentQuestion);
             // Ensure UI displays
             document.getElementById('questionDisplay').style.display = 'block';
-            document.getElementById('scoreDisplay').style.display = 'block';
+            document.getElementById('scoreDisplay').style.display = 'none';
             document.getElementById('instructions').style.display = 'block';
             var menu = document.getElementById('menuOverlay');
             if (menu) menu.style.display = 'none';
             setQuestion(contentQuestion);
+            updateScore();
         }
         
         function endGame() {
             gameEnded = true;
-            var totalCorrectItems = contentCorrect.length;
-            var accuracy = totalCorrectItems > 0 ? Math.round((correctCount / totalCorrectItems) * 100) : 0;
-            
-            setQuestion('Game Over! Accuracy: ' + accuracy + '% (' + correctCount + '/' + totalCorrectItems + ' correct items)');
             console.log('Game ended. Final score:', correctCount, 'correct,', wrongCount, 'wrong');
-            
             // Clear any remaining objects
             objects = [];
+            // Hide in-game UI elements
+            document.getElementById('instructions').style.display = 'none';
+            // Prepare a styled summary: title + colored counts in scoreDisplay
+            var scoreDisplay = document.getElementById('scoreDisplay');
+            if (scoreDisplay) {
+                scoreDisplay.style.display = 'block';
+                scoreDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.55)';
+                scoreDisplay.style.left = '50%';
+                scoreDisplay.style.top = '20%';
+                scoreDisplay.style.transform = 'translateX(-50%)';
+                scoreDisplay.style.right = '';
+                scoreDisplay.style.padding = '14px 18px';
+                scoreDisplay.style.fontSize = '18px';
+                scoreDisplay.style.textAlign = 'center';
+                scoreDisplay.innerHTML = '<div style="margin-bottom:8px; font-weight:bold;">Tvůj výsledný dataset:</div>' +
+                    '<div><span style="color:#2ecc71; font-weight:bold;">Správné:</span> ' + correctCount + '</div>' +
+                    '<div><span style="color:#e74c3c; font-weight:bold;">Nesprávné:</span> ' + wrongCount + '</div>' +
+                    '<div><span style="color:#3498db; font-weight:bold;">Chybějící:</span> ' + missedCorrectCount + '</div>';
+            }
         }
 
         function parseCSV(csvText) {
@@ -552,7 +573,10 @@
         function updateScore() {
             var scoreDisplay = document.getElementById('scoreDisplay');
             if (scoreDisplay) {
-                scoreDisplay.innerHTML = 'Correct: ' + correctCount + ' | Wrong: ' + wrongCount;
+                scoreDisplay.innerHTML = 'Tvůj výsledný dataset: ' +
+                    'Správné: ' + correctCount + ' | ' +
+                    'Nesprávné: ' + wrongCount + ' | ' +
+                    'Chybějící: ' + missedCorrectCount;
             }
         }
         
@@ -920,7 +944,8 @@
             });
             
             if (unusedCorrect.length === 0 && unusedIncorrect.length === 0) {
-                endGame();
+                // All items have been spawned at least once; mark spawning finished
+                spawningFinished = true;
                 return;
             }
 
@@ -1058,6 +1083,11 @@
                 objects[i].y += gameSpeed * frameDtFactor;
                 
                 if (objects[i].y > canvas.height) {
+                    // Count missed correct items
+                    if (objects[i].isCorrect) {
+                        missedCorrectCount++;
+                        updateScore();
+                    }
                     objects.splice(i, 1);
                 }
             }
@@ -1293,11 +1323,8 @@
                 ctx.fillStyle = '#27ae60';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw static road (no scrolling)
+                // Final screen: same design as intro menu (static background only)
                 drawStaticRoad();
-                
-                // Draw car in center
-                drawCar();
                 
                 // Continue loop but don't update anything
                 requestAnimationFrame(gameLoop);
@@ -1324,6 +1351,10 @@
             // Update
             maybeSpawn(typeof now === 'number' ? now : performance.now());
             updateObjects();
+            // If spawning is finished and there are no objects left, end the game
+            if (!gameEnded && spawningFinished && objects.length === 0) {
+                endGame();
+            }
             checkCollisions();
             
             // Draw
