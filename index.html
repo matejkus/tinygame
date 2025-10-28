@@ -170,8 +170,8 @@
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="menuOverlay">
-            <button id="btnStart" class="menuButton"><span class="menuButtonLabel">Start the game</span></button>
-            <button id="btnSecond" class="menuButton"></button>
+			<button id="btnStart" class="menuButton"><span class="menuButtonLabel">Umělá inteligence</span></button>
+			<button id="btnSecond" class="menuButton"><span class="menuButtonLabel">Big Data</span></button>
         </div>
         <div id="questionDisplay">Collect only correct Python!</div>
         <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
@@ -521,6 +521,31 @@
             }
             if (!corr.length && !inc.length) throw new Error('No rows found');
             return { question: question, correct: corr, incorrect: inc };
+        }
+        
+        // Load a specific CSV file and start the game on success
+        function loadCSVThenStart(url) {
+            if (location && location.protocol === 'file:') {
+                console.error('Cannot fetch local files over file:// due to browser restrictions.');
+                setQuestion('Cannot load content over file://. Please serve the folder via a local web server or deploy.');
+                return;
+            }
+            fetch(url, { cache: 'no-store' })
+                .then(function(res){
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.text();
+                })
+                .then(function(text){
+                    var data = parseCSV(text);
+                    applyUploadedContent(data);
+                    // iOS may require a gesture; this click counts, so try again
+                    enableTiltControls();
+                    startGame();
+                })
+                .catch(function(err){
+                    console.error('Failed to load', url, err);
+                    setQuestion('Failed to load ' + url + '.');
+                });
         }
         
         // Update score display
@@ -1390,19 +1415,14 @@
         var btnStart = document.getElementById('btnStart');
         if (btnStart) {
             btnStart.addEventListener('click', function() {
-                // Require content; if not loaded yet, load sample to proceed
-                if (!contentCorrect.length || !contentIncorrect.length) {
-                    var sample = getSampleContent();
-                    applyUploadedContent(sample);
-                }
-                // Try enabling tilt again after a user gesture (needed for iOS)
-                enableTiltControls();
-                startGame();
+                loadCSVThenStart('content.csv'); // Umělá inteligence
             });
         }
         var btnSecond = document.getElementById('btnSecond');
         if (btnSecond) {
-            btnSecond.addEventListener('click', function(){ /* placeholder */ });
+            btnSecond.addEventListener('click', function(){
+                loadCSVThenStart('content_2.csv'); // Big Data
+            });
         }
 
         // Hide gameplay UI while in menu
@@ -1425,23 +1445,22 @@
                 if (!button) return;
                 var label = button.querySelector('.menuButtonLabel');
                 if (!label) return;
+                // Reset any previous transform and set a base font size proportional to button height
                 label.style.transform = 'scale(1)';
                 label.style.fontSize = Math.floor(button.clientHeight * 0.28) + 'px';
-                // Measure and scale down if needed using CSS transform for reliability
-                var safeW = button.clientWidth * 0.50;  // smaller inner width -> bigger side margins
-                var safeH = button.clientHeight * 0.26; // smaller inner height -> bigger top/bottom margins
-                // Temporarily set to auto to measure
-                var computed = window.getComputedStyle(label);
-                var fontSize = parseFloat(computed.fontSize) || 24;
-                ctx.save();
-                ctx.font = 'bold ' + fontSize + 'px Arial';
-                var text = label.textContent || '';
-                var textW = ctx.measureText(text).width;
-                ctx.restore();
-                var textH = fontSize; // ~1em
-                var scaleX = safeW > 0 ? (safeW / textW) : 1;
-                var scaleY = safeH > 0 ? (safeH / textH) : 1;
-                var marginFactor = 0.90; // extra breathing room
+
+                // Define a conservative safe area to ensure bigger padding around the text
+                var safeW = button.clientWidth * 0.42;  // narrower safe width => larger side margins
+                var safeH = button.clientHeight * 0.22; // shorter safe height => larger top/bottom margins
+
+                // Measure the actual label box (DOM-based, more accurate than canvas measure)
+                var rect = label.getBoundingClientRect();
+                var labelW = rect.width || 1;
+                var labelH = rect.height || 1;
+
+                var scaleX = safeW > 0 ? (safeW / labelW) : 1;
+                var scaleY = safeH > 0 ? (safeH / labelH) : 1;
+                var marginFactor = 0.86; // extra breathing room
                 var scale = Math.min(1, scaleX, scaleY) * marginFactor;
                 label.style.transform = 'scale(' + scale + ')';
             }
