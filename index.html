@@ -362,9 +362,9 @@
             q.style.top = '';
             q.style.bottom = '18px';
             q.style.transform = 'none';
-            // Responsive but small; clamp for desktop
-            var fs = Math.round((window.innerWidth || 800) * 0.03); // ~3vw
-            fs = Math.max(16, Math.min(fs, 26));
+            // Smaller responsive font; clamp to keep modest on desktop
+            var fs = Math.round((window.innerWidth || 800) * 0.022); // ~2.2vw
+            fs = Math.max(14, Math.min(fs, 22));
             q.style.fontSize = fs + 'px';
             // Single line, ellipsis if too long
             q.style.whiteSpace = 'nowrap';
@@ -580,6 +580,8 @@
             // Clear any remaining objects
             objects = [];
             // Hide in-game UI elements
+            var qEl = document.getElementById('questionDisplay');
+            if (qEl) qEl.style.display = 'none';
             
             // Prepare a styled summary: title + colored counts in scoreDisplay
             var scoreDisplay = document.getElementById('scoreDisplay');
