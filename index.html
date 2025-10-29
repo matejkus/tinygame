@@ -129,6 +129,7 @@
             color: #ffffff;
             font-size: 28px; /* will be auto-fitted via JS */
             font-weight: bold;
+            font-family: 'Poppins', Arial, sans-serif;
             border: none;
             outline: none;
             background-color: transparent;
@@ -154,6 +155,7 @@
             line-height: 1;
             pointer-events: none;
             white-space: nowrap;
+            font-family: 'Poppins', Arial, sans-serif;
         }
 
         /* Fullscreen toggle button (image) */
@@ -337,8 +339,15 @@
             q.style.top = '50%';
             q.style.bottom = '';
             q.style.transform = 'translate(-50%, -50%)';
-            // Large, responsive font based on canvas height
-            q.style.fontSize = Math.max(32, Math.round(canvas.height * 0.08)) + 'px';
+            // Responsive font based on the smaller viewport side (better on phones)
+            var shortSide = Math.min(window.innerWidth, window.innerHeight) || 600;
+            var fs = Math.round(shortSide * 0.072); // ~7.2vmin
+            fs = Math.max(22, Math.min(fs, 80));
+            q.style.fontSize = fs + 'px';
+            // Constrain width to encourage wrapping on small screens
+            q.style.width = '92vw';
+            q.style.maxWidth = '1100px';
+            q.style.whiteSpace = 'normal';
             q.style.backgroundColor = 'transparent';
             q.style.padding = '0';
         }
@@ -347,12 +356,22 @@
             var q = document.getElementById('questionDisplay');
             if (!q) return;
             q.style.display = 'block';
-            q.style.left = '50%';
-            q.style.right = '';
+            // Full-width with margins; single line centered
+            q.style.left = '10px';
+            q.style.right = '10px';
             q.style.top = '';
             q.style.bottom = '18px';
-            q.style.transform = 'translateX(-50%)';
-            q.style.fontSize = '28px';
+            q.style.transform = 'none';
+            // Responsive but small; clamp for desktop
+            var fs = Math.round((window.innerWidth || 800) * 0.03); // ~3vw
+            fs = Math.max(16, Math.min(fs, 26));
+            q.style.fontSize = fs + 'px';
+            // Single line, ellipsis if too long
+            q.style.whiteSpace = 'nowrap';
+            q.style.overflow = 'hidden';
+            q.style.textOverflow = 'ellipsis';
+            q.style.width = 'auto';
+            q.style.maxWidth = 'none';
             q.style.backgroundColor = 'transparent';
             q.style.padding = '0';
         }
@@ -1082,7 +1101,7 @@
             return { w: w, h: baseH };
         }
 
-        // Wrap text into lines to fit maxWidth; returns array of lines (no truncation)
+        // Wrap text by whole words only; never split a word. Width fit is enforced by font sizing.
         function wrapTextLines(ctx, text, maxWidth) {
             var words = String(text || '').split(/\s+/);
             var lines = [];
@@ -1093,18 +1112,8 @@
                     current = test;
                 } else {
                     if (current) lines.push(current);
-                    // handle extremely long single word by hard-break
-                    if (!current) {
-                        var word = words[i];
-                        var chunk = '';
-                        for (var c = 0; c < word.length; c++) {
-                            var t2 = chunk + word[c];
-                            if (ctx.measureText(t2).width <= maxWidth) chunk = t2; else { lines.push(chunk); chunk = word[c]; }
-                        }
-                        current = chunk;
-                    } else {
-                        current = words[i];
-                    }
+                    // Start a new line with the word; if it doesn't fit, font size must be reduced by caller
+                    current = words[i];
                 }
             }
             if (current) lines.push(current);
@@ -1114,15 +1123,22 @@
         // Fit text: auto font size and wrapped lines to fit within card, no truncation
         function layoutObjectText(ctx, text, w, h) {
             var maxFont = Math.max(16, Math.floor(h * 0.34));
-            var minFont = 10; // allow smaller fonts for very long strings
+            var minFont = 8; // allow smaller fonts for very long single words
             var chosen = minFont;
             var lines = [String(text || '')];
+            var maxWidth = w * 0.86;
             for (var fs = maxFont; fs >= minFont; fs--) {
                 ctx.font = 'bold ' + fs + 'px Poppins, Arial, sans-serif';
-                var candidate = wrapTextLines(ctx, text, w * 0.86);
-                var lineHeight = Math.round(fs * 1.12);
-                var totalH = candidate.length * lineHeight;
-                if (totalH <= h * 0.82) { // fit inside card with a small margin
+                var candidate = wrapTextLines(ctx, text, maxWidth);
+                // ensure no line exceeds maxWidth
+                var tooWide = false;
+                for (var i = 0; i < candidate.length; i++) {
+                    if (ctx.measureText(candidate[i]).width > maxWidth) { tooWide = true; break; }
+                }
+                if (tooWide) continue;
+                var lineHeightTmp = Math.round(fs * 1.12);
+                var totalHTmp = candidate.length * lineHeightTmp;
+                if (totalHTmp <= h * 0.82) { // fits inside card with margin
                     chosen = fs;
                     lines = candidate;
                     break;
