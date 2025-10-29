@@ -8,12 +8,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2c3e50">
     <title>Educational Car Game - Simple</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             padding: 0;
             background-color: #2c3e50;
-            font-family: Arial, sans-serif;
+            font-family: 'Poppins', Arial, sans-serif;
             overflow: hidden;
             position: fixed;
             width: 100%;
@@ -116,11 +119,11 @@
             flex-direction: row;
             align-items: center;
             justify-content: center;
-            gap: 20px;
+            gap: 8px;
             flex-wrap: wrap;
         }
         .menuButton {
-            width: min(42vw, 520px);
+            width: auto; /* width will be set via JS to match asset ratio */
             height: clamp(80px, 16vh, 160px);
             background: url('button.png') center / contain no-repeat;
             color: #ffffff;
@@ -129,7 +132,7 @@
             border: none;
             outline: none;
             background-color: transparent;
-            padding: 0 24px;
+            padding: 0; /* clickable area matches the visible asset */
             cursor: pointer;
             text-shadow: 0 1px 2px rgba(0,0,0,0.5);
             display: flex;
@@ -139,9 +142,10 @@
             overflow: hidden; /* hide overflow if any */
         }
         #controlInstruction {
-            width: min(64vw, 720px);
+            width: min(50vw, 500px);
             height: auto;
             display: block;
+            margin-top: 24px;
         }
 
         .menuButtonLabel {
@@ -1114,7 +1118,7 @@
             var chosen = minFont;
             var lines = [String(text || '')];
             for (var fs = maxFont; fs >= minFont; fs--) {
-                ctx.font = 'bold ' + fs + 'px Arial';
+                ctx.font = 'bold ' + fs + 'px Poppins, Arial, sans-serif';
                 var candidate = wrapTextLines(ctx, text, w * 0.86);
                 var lineHeight = Math.round(fs * 1.12);
                 var totalH = candidate.length * lineHeight;
@@ -1155,7 +1159,7 @@
                 var layout = layoutObjectText(ctx, obj.text, w, h);
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.font = 'bold ' + layout.fontSize + 'px Arial';
+                ctx.font = 'bold ' + layout.fontSize + 'px Poppins, Arial, sans-serif';
                 ctx.fillStyle = '#ffffff';
                 ctx.shadowColor = 'rgba(0,0,0,0.45)';
                 ctx.shadowBlur = 2;
@@ -1573,33 +1577,77 @@
         function fitMenuText() {
             var btnStart = document.getElementById('btnStart');
             var btnSecond = document.getElementById('btnSecond');
-            fitOne(btnStart);
-            fitOne(btnSecond);
-            function fitOne(button) {
-                if (!button) return;
-                var label = button.querySelector('.menuButtonLabel');
-                if (!label) return;
-                // Reset any previous transform and set a base font size proportional to button height
+            var buttons = [btnStart, btnSecond].filter(function(b){return !!b;});
+            if (!buttons.length) return;
+            sizeMenuButtons();
+
+            var baseFactor = 0.44; // base font as % of button height
+            var safeWFactor = 0.78; // safe width area inside asset
+            var safeHFactor = 0.56; // safe height area inside asset
+            var marginFactor = 0.92; // little breathing room
+            var labels = [];
+            var minScale = 1;
+
+            // First pass: reset and measure each label at base font size
+            for (var i=0; i<buttons.length; i++) {
+                var button = buttons[i];
+                var label = button ? button.querySelector('.menuButtonLabel') : null;
+                if (!label) continue;
+                labels.push(label);
                 label.style.transform = 'scale(1)';
-                label.style.fontSize = Math.floor(button.clientHeight * 0.28) + 'px';
+                label.style.fontSize = Math.floor(button.clientHeight * baseFactor) + 'px';
 
-                // Define a conservative safe area to ensure bigger padding around the text
-                var safeW = button.clientWidth * 0.42;  // narrower safe width => larger side margins
-                var safeH = button.clientHeight * 0.22; // shorter safe height => larger top/bottom margins
-
-                // Measure the actual label box (DOM-based, more accurate than canvas measure)
+                var safeW = button.clientWidth * safeWFactor;
+                var safeH = button.clientHeight * safeHFactor;
                 var rect = label.getBoundingClientRect();
                 var labelW = rect.width || 1;
                 var labelH = rect.height || 1;
-
                 var scaleX = safeW > 0 ? (safeW / labelW) : 1;
                 var scaleY = safeH > 0 ? (safeH / labelH) : 1;
-                var marginFactor = 0.86; // extra breathing room
                 var scale = Math.min(1, scaleX, scaleY) * marginFactor;
-                label.style.transform = 'scale(' + scale + ')';
+                if (scale < minScale) minScale = scale;
+            }
+
+            // Second pass: apply the same scale to all labels so font sizes match
+            for (var j=0; j<labels.length; j++) {
+                labels[j].style.transform = 'scale(' + (minScale || 1) + ')';
             }
         }
         window.addEventListener('resize', fitMenuText);
+        if (document.fonts && document.fonts.ready) {
+            try { document.fonts.ready.then(function(){ fitMenuText(); }); } catch(e) {}
+        } else {
+            setTimeout(fitMenuText, 300);
+        }
+
+        // Ensure button clickable width matches the visual asset by enforcing aspect ratio
+        var menuButtonRatio = 1.8; // fallback ratio if image not yet loaded
+        (function preloadMenuButtonAsset(){
+            try {
+                var img = new Image();
+                img.onload = function(){
+                    if (img.naturalWidth && img.naturalHeight) {
+                        menuButtonRatio = img.naturalWidth / img.naturalHeight;
+                        sizeMenuButtons();
+                        fitMenuText();
+                    }
+                };
+                img.src = 'button.png';
+            } catch(e) { /* ignore */ }
+        })();
+
+        function sizeMenuButtons() {
+            var buttons = [ document.getElementById('btnStart'), document.getElementById('btnSecond') ];
+            for (var i=0; i<buttons.length; i++) {
+                var b = buttons[i];
+                if (!b) continue;
+                var h = b.clientHeight || 0;
+                if (h > 0 && isFinite(menuButtonRatio) && menuButtonRatio > 0.1) {
+                    var w = Math.round(h * menuButtonRatio);
+                    b.style.width = w + 'px';
+                }
+            }
+        }
     </script>
 </body>
 </html>
