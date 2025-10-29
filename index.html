@@ -44,7 +44,7 @@
             bottom: 18px;
             left: 10px;
             right: 10px;
-            background-color: rgba(52, 73, 94, 0.9);
+            background-color: transparent;
             color: white;
             padding: 10px;
             border-radius: 5px;
@@ -67,19 +67,7 @@
             z-index: 100;
         }
         
-        #instructions {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 12px;
-            z-index: 100;
-        }
+        /* Removed in-game instruction; shown in menu via control_instruction.png */
         
         #debugInfo {
             position: absolute;
@@ -120,11 +108,19 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 16px;
+            gap: 20px;
             z-index: 150;
         }
+        .menuButtonsRow {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
         .menuButton {
-            width: min(56vw, 640px);
+            width: min(42vw, 520px);
             height: clamp(80px, 16vh, 160px);
             background: url('button.png') center / contain no-repeat;
             color: #ffffff;
@@ -141,6 +137,11 @@
             justify-content: center;
             white-space: nowrap; /* single line; JS scales to fit */
             overflow: hidden; /* hide overflow if any */
+        }
+        #controlInstruction {
+            width: min(64vw, 720px);
+            height: auto;
+            display: block;
         }
 
         .menuButtonLabel {
@@ -171,12 +172,15 @@
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
         <div id="menuOverlay">
-			<button id="btnStart" class="menuButton"><span class="menuButtonLabel">Umělá inteligence</span></button>
-			<button id="btnSecond" class="menuButton"><span class="menuButtonLabel">Big Data</span></button>
+            <div class="menuButtonsRow">
+                <button id="btnStart" class="menuButton"><span class="menuButtonLabel">Umělá inteligence</span></button>
+                <button id="btnSecond" class="menuButton"><span class="menuButtonLabel">Big Data</span></button>
+            </div>
+            <img id="controlInstruction" src="control_instruction.png" alt="Control instruction">
         </div>
         <div id="questionDisplay">Collect only correct Python!</div>
         <div id="scoreDisplay">Tvůj výsledný dataset: Správné: 0 | Nesprávné: 0 | Chybějící: 0</div>
-        <div id="instructions">Tilt your phone (mobile) or use keyboard arrows (PC).</div>
+        
         <div id="debugInfo" style="display:none">Loading...</div>
     </div>
     
@@ -309,10 +313,44 @@
         var usedIncorrectItems = [];
         var gameEnded = false;
         var spawningFinished = false; // true when all content items have been spawned
+        // Pre-spawn question phase and spawn gating
+        var spawnEnabled = false;
+        var preSpawnActive = false;
+        var preSpawnEndTime = 0;
+        var preSpawnDurationMs = 2500; // show centered question ~2.5s before spawning
 
         function setQuestion(text) {
             var q = document.getElementById('questionDisplay');
             if (q) q.textContent = text;
+        }
+        
+        function showQuestionCentered() {
+            var q = document.getElementById('questionDisplay');
+            if (!q) return;
+            q.style.display = 'block';
+            q.style.left = '50%';
+            q.style.right = '';
+            q.style.top = '50%';
+            q.style.bottom = '';
+            q.style.transform = 'translate(-50%, -50%)';
+            // Large, responsive font based on canvas height
+            q.style.fontSize = Math.max(32, Math.round(canvas.height * 0.08)) + 'px';
+            q.style.backgroundColor = 'transparent';
+            q.style.padding = '0';
+        }
+        
+        function showQuestionBottom() {
+            var q = document.getElementById('questionDisplay');
+            if (!q) return;
+            q.style.display = 'block';
+            q.style.left = '50%';
+            q.style.right = '';
+            q.style.top = '';
+            q.style.bottom = '18px';
+            q.style.transform = 'translateX(-50%)';
+            q.style.fontSize = '28px';
+            q.style.backgroundColor = 'transparent';
+            q.style.padding = '0';
         }
         
         // Show loading prompt initially
@@ -500,11 +538,17 @@
             // Ensure UI displays
             document.getElementById('questionDisplay').style.display = 'block';
             document.getElementById('scoreDisplay').style.display = 'none';
-            document.getElementById('instructions').style.display = 'block';
             var menu = document.getElementById('menuOverlay');
             if (menu) menu.style.display = 'none';
             setQuestion(contentQuestion);
             updateScore();
+            // Reset objects and schedule pre-spawn question phase
+            objects = [];
+            nextSpawnAt = performance.now();
+            spawnEnabled = false;
+            preSpawnActive = true;
+            preSpawnEndTime = performance.now() + preSpawnDurationMs;
+            showQuestionCentered();
         }
         
         function endGame() {
@@ -513,7 +557,7 @@
             // Clear any remaining objects
             objects = [];
             // Hide in-game UI elements
-            document.getElementById('instructions').style.display = 'none';
+            
             // Prepare a styled summary: title + colored counts in scoreDisplay
             var scoreDisplay = document.getElementById('scoreDisplay');
             if (scoreDisplay) {
@@ -983,6 +1027,7 @@
         function maybeSpawn(nowMs) {
             // Don't spawn if game hasn't started or has ended
             if (!gameStarted || gameEnded) return;
+            if (!spawnEnabled) return;
             if (objects.length >= maxObjects) return;
             if (nowMs < nextSpawnAt) return;
 
@@ -1382,6 +1427,15 @@
                 return;
             }
             
+            // Handle pre-spawn question timing
+            if (preSpawnActive) {
+                if (performance.now() >= preSpawnEndTime) {
+                    preSpawnActive = false;
+                    spawnEnabled = true;
+                    showQuestionBottom();
+                }
+            }
+            
             // Update car physics only during gameplay
             if (!inMenu) {
                 updateCarPhysics();
@@ -1512,7 +1566,6 @@
             if (menu) menu.style.display = 'flex';
             document.getElementById('questionDisplay').style.display = 'none';
             document.getElementById('scoreDisplay').style.display = 'none';
-            document.getElementById('instructions').style.display = 'none';
             fitMenuText();
         })();
 
