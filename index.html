@@ -252,6 +252,8 @@
         var correctCount = 0;
         var wrongCount = 0;
         var missedCorrectCount = 0;
+        // Feedback overlay for wrong catches
+        var feedbacks = [];
         var isDragging = false;
         var tiltX = 0;
         var tiltEnabled = false;
@@ -298,6 +300,9 @@
         // Object background sprite
         var objectBgImage = null;
         var objectBgLoaded = false;
+        // Wrong-catch icon (optional)
+        var wrongIcon = null;
+        var wrongIconLoaded = false;
         
         // Spawn control (consistent pacing)
         var spawnIntervalMs = 1300; // slightly faster spawning to match higher speed
@@ -565,8 +570,9 @@
             if (menu) menu.style.display = 'none';
             setQuestion(contentQuestion);
             updateScore();
-            // Reset objects and schedule pre-spawn question phase
+            // Reset objects and feedbacks; schedule pre-spawn question phase
             objects = [];
+            feedbacks = [];
             nextSpawnAt = performance.now();
             spawnEnabled = false;
             preSpawnActive = true;
@@ -579,6 +585,7 @@
             console.log('Game ended. Final score:', correctCount, 'correct,', wrongCount, 'wrong');
             // Clear any remaining objects
             objects = [];
+            feedbacks = [];
             // Hide in-game UI elements
             var qEl = document.getElementById('questionDisplay');
             if (qEl) qEl.style.display = 'none';
@@ -791,6 +798,22 @@
             } catch (e) {
                 objectBgLoaded = false;
             }
+
+        // Wrong icon image (for incorrect catches)
+        wrongIcon = new Image();
+        wrongIcon.onload = function() {
+            wrongIconLoaded = true;
+            console.log('Wrong icon loaded');
+        };
+        wrongIcon.onerror = function() {
+            wrongIconLoaded = false;
+            console.log('Wrong icon failed to load, using vector X fallback');
+        };
+        try {
+            wrongIcon.src = 'wrong.png';
+        } catch (e) {
+            wrongIconLoaded = false;
+        }
         }
         
         // Draw road with two layers (static + scrolling overlay)
@@ -1193,6 +1216,52 @@
                 ctx.shadowOffsetY = 0;
             }
         }
+
+        // Draw transient feedbacks (e.g., wrong-catch icon)
+        function drawFeedbacks(nowTs) {
+            if (!feedbacks || !feedbacks.length) return;
+            var nowVal = (typeof nowTs === 'number') ? nowTs : performance.now();
+            var sz = getObjectCardSize();
+            var baseH = sz.h;
+            var remaining = [];
+            for (var i = 0; i < feedbacks.length; i++) {
+                var f = feedbacks[i];
+                var elapsed = nowVal - f.start;
+                var dur = f.duration || 400;
+                var p = Math.min(1, Math.max(0, elapsed / dur));
+                var alpha = 1 - p;
+                var scale = 1 - 0.2 * p; // shrink slightly over time
+
+                if (f.type === 'wrong') {
+                    var iconSize = Math.round(baseH * 0.6 * scale);
+                    var half = Math.floor(iconSize / 2);
+                    if (wrongIconLoaded && wrongIcon && wrongIcon.width) {
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.drawImage(wrongIcon, f.x - half, f.y - half, iconSize, iconSize);
+                        ctx.restore();
+                    } else {
+                        // Fallback vector X
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.strokeStyle = '#e74c3c';
+                        ctx.lineWidth = Math.max(4, Math.round(iconSize * 0.12));
+                        ctx.beginPath();
+                        ctx.moveTo(f.x - half, f.y - half);
+                        ctx.lineTo(f.x + half, f.y + half);
+                        ctx.moveTo(f.x + half, f.y - half);
+                        ctx.lineTo(f.x - half, f.y + half);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
+                }
+
+                if (p < 1) remaining.push(f);
+            }
+            feedbacks = remaining;
+        }
         
         // Update objects
         function updateObjects() {
@@ -1228,8 +1297,16 @@
                         correctCount++;
                     } else {
                         wrongCount++;
+                        // Visual feedback at collision point
+                        try {
+                            feedbacks.push({ x: obj.x, y: obj.y, type: 'wrong', start: performance.now(), duration: 450 });
+                        } catch(e) {}
+                        // Haptic feedback where supported
+                        if (navigator && typeof navigator.vibrate === 'function') {
+                            try { navigator.vibrate(120); } catch(e) {}
+                        }
                     }
-                    
+
                     updateScore();
                     objects.splice(i, 1);
                 }
@@ -1489,6 +1566,7 @@
             if (!inMenu) {
                 drawCar();
                 drawObjects();
+                drawFeedbacks(now);
             }
             
             // Live debug overlay
