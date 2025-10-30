@@ -8,12 +8,15 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="theme-color" content="#2c3e50">
     <title>Educational Car Game - Simple</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com">
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             padding: 0;
             background-color: #2c3e50;
-            font-family: Arial, sans-serif;
+            font-family: 'Poppins', Arial, sans-serif;
             overflow: hidden;
             position: fixed;
             width: 100%;
@@ -40,15 +43,16 @@
         
         #questionDisplay {
             position: absolute;
-            top: 10px;
+            top: auto;
+            bottom: 18px;
             left: 10px;
             right: 10px;
-            background-color: rgba(52, 73, 94, 0.9);
+            background-color: transparent;
             color: white;
             padding: 10px;
             border-radius: 5px;
             text-align: center;
-            font-size: 16px;
+            font-size: 28px;
             font-weight: bold;
             z-index: 100;
         }
@@ -66,19 +70,7 @@
             z-index: 100;
         }
         
-        #instructions {
-            position: absolute;
-            bottom: 10px;
-            left: 10px;
-            right: 10px;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 8px;
-            border-radius: 5px;
-            text-align: center;
-            font-size: 12px;
-            z-index: 100;
-        }
+        /* Removed in-game instruction; shown in menu via control_instruction.png */
         
         #debugInfo {
             position: absolute;
@@ -89,6 +81,7 @@
             padding: 5px;
             font-size: 10px;
             z-index: 100;
+            display: none;
         }
         
         /* Always landscape - no portrait handling */
@@ -109,32 +102,95 @@
                 padding: 6px;
             }
         }
+
+        /* Intro menu overlay */
+        #menuOverlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            z-index: 150;
+        }
+        .menuButtonsRow {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .menuButton {
+            width: auto; /* width will be set via JS to match asset ratio */
+            height: clamp(80px, 16vh, 160px);
+            background: url('button.png') center / contain no-repeat;
+            color: #ffffff;
+            font-size: 28px; /* will be auto-fitted via JS */
+            font-weight: bold;
+            font-family: 'Poppins', Arial, sans-serif;
+            border: none;
+            outline: none;
+            background-color: transparent;
+            padding: 0; /* clickable area matches the visible asset */
+            cursor: pointer;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap; /* single line; JS scales to fit */
+            overflow: hidden; /* hide overflow if any */
+        }
+        #controlInstruction {
+            width: min(50vw, 500px);
+            height: auto;
+            display: block;
+            margin-top: 24px;
+        }
+
+        .menuButtonLabel {
+            display: inline-block;
+            transform-origin: center center;
+            line-height: 1;
+            pointer-events: none;
+            white-space: nowrap;
+            font-family: 'Poppins', Arial, sans-serif;
+        }
+
+        /* Fullscreen toggle button (image) */
+        #fsToggleBtn {
+            position: absolute;
+            right: 12px;
+            bottom: 12px;
+            width: clamp(48px, 8vh, 84px);
+            height: clamp(48px, 8vh, 84px);
+            background: url('full_screen_button.png') center / contain no-repeat;
+            border: none;
+            padding: 0;
+            background-color: transparent;
+            cursor: pointer;
+            z-index: 200;
+        }
     </style>
 </head>
 <body>
     <div id="gameContainer">
         <canvas id="gameCanvas"></canvas>
-        <div id="questionDisplay">Collect only correct Python!</div>
-        <div id="scoreDisplay">Correct: 0 | Wrong: 0</div>
-        <div id="instructions">Touch and drag to move the car, or tilt your phone!</div>
-        <div id="debugInfo">Loading...</div>
-        <div id="tiltStatus" style="position: absolute; top: 110px; left: 10px; background: rgba(0,0,0,0.7); color: white; padding: 5px; font-size: 10px; z-index: 100;">
-            Tilt: Not Working
+        <div id="menuOverlay">
+            <div class="menuButtonsRow">
+                <button id="btnStart" class="menuButton"><span class="menuButtonLabel">Umělá inteligence</span></button>
+                <button id="btnSecond" class="menuButton"><span class="menuButtonLabel">Big Data</span></button>
+            </div>
+            <img id="controlInstruction" src="control_instruction.png" alt="Control instruction">
         </div>
-        <button id="enableTiltBtn" style="position: absolute; top: 80px; left: 10px; background: #3498db; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
-            Enable Tilt
-        </button>
-        <button id="uploadBtn" style="position: absolute; top: 80px; left: 140px; background: #8e44ad; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
-            Upload Content
-        </button>
-        <input id="uploadInput" type="file" accept=".json,.csv" style="display:none" />
-        <button id="downloadJsonBtn" style="position: absolute; top: 80px; left: 260px; background: #16a085; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
-            Download Sample JSON
-        </button>
-        <button id="downloadCsvBtn" style="position: absolute; top: 80px; left: 420px; background: #f39c12; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;">
-            Download Sample CSV
-        </button>
+        <div id="questionDisplay">Collect only correct Python!</div>
+        <div id="scoreDisplay">Tvůj výsledný dataset: Správné: 0 | Nesprávné: 0 | Chybějící: 0</div>
+        
+        <div id="debugInfo" style="display:none">Loading...</div>
     </div>
+    
+    <!-- Content is loaded on-demand per menu selection (JS -> JSON -> CSV). -->
     
     <script>
         console.log('Simple game starting...');
@@ -145,6 +201,9 @@
         var debugInfo = document.getElementById('debugInfo');
         var showDebugValues = true; // live debug overlay
         var lastUsingTilt = false;  // expose current control source to debug
+        var lastTimestamp = null;  // for delta-time updates
+        var frameDtFactor = 1;     // dt relative to 60fps (16.67ms)
+        var frameDtSec = 1/60;     // dt in seconds
         
         // Set canvas size - consistent base size, scaled for larger screens
         function setCanvasSize() {
@@ -161,8 +220,8 @@
             var scaleY = screenHeight / baseHeight;
             var scale = Math.max(scaleX, scaleY); // cover entire screen (no letterboxing)
             
-            // Adjust game speed based on scale to maintain consistent feel
-            gameSpeed = baseGameSpeed * scale;
+            // Keep forward speed consistent across devices (no scaling by screen size)
+            gameSpeed = baseGameSpeed;
             
             // Set canvas to base size (game logic uses these dimensions)
             canvas.width = baseWidth;
@@ -187,30 +246,33 @@
         
         // Game variables
         var carX = canvas.width / 2;
-        var carY = canvas.height - 100;
+        var carYRatio = 0.7; // car center at ~70% of screen height (lower third)
+        var carY = Math.round(canvas.height * carYRatio);
         var objects = [];
         var correctCount = 0;
         var wrongCount = 0;
-        var caughtWrongItems = [];
-        // Transient feedback overlay for wrong catches
+        var missedCorrectCount = 0;
+        // Feedback overlay for wrong catches
         var feedbacks = [];
         var isDragging = false;
         var tiltX = 0;
         var tiltEnabled = false;
         var roadOffset = 0; // For scrolling road effect
-        var baseGameSpeed = 2; // Base speed for mobile
-        var gameSpeed = 2; // Will be adjusted based on screen scale
+        var baseGameSpeed = 4; // Slower forward speed (device-independent)
+        var gameSpeed = baseGameSpeed; // Forward speed in px/frame@60; scaled by dt
         var carSteering = 0; // Car's current steering direction (-1 to 1)
         var carVelocity = 0; // Car's horizontal velocity
         var carAngle = 0;    // Visual tilt angle (radians)
         
         // Steering/physics tuning
-        var controlMaxTiltDeg = 30;   // smartphone control saturation (±30°)
+        var controlMaxTiltDeg = 20;   // smartphone control saturation (reach max around ±20°)
         var controlDeadzoneDeg = 4;   // small tilt ignored to prevent drift
         var steeringSensitivity = 0.22; // for desktop (keys/mouse)
-        var velocityMax = 4.0;          // max sideways speed, increased for more range
+        var velocityMaxDesktop = 4.0;   // desktop max sideways speed
+        var velocityMaxTilt = 9.0;      // mobile tilt max sideways speed (much faster than desktop)
         var frictionWhenNoInput = 0.92; // friction for desktop
-        var tiltResponse = 0.2;         // how fast car eases to target speed on tilt (0-1)
+        var tiltResponse = 0.35;        // how fast car eases to target speed on tilt (0-1)
+        var tiltCurveExp = 1.6;         // >1 increases contrast: B:10 slower, B:20 near max
         
         // Desktop control state
         var inputAxis = 0; // -1 left, 1 right, 0 none
@@ -235,10 +297,16 @@
         // Vehicle sprite
         var vehicleImage = null;
         var vehicleLoaded = false;
+        // Object background sprite
+        var objectBgImage = null;
+        var objectBgLoaded = false;
+        // Wrong-catch icon (optional)
+        var wrongIcon = null;
+        var wrongIconLoaded = false;
         
         // Spawn control (consistent pacing)
-        var spawnIntervalMs = 1800; // base interval between spawns (increased for more thinking time)
-        var spawnJitterMs = 600;   // random variation to avoid perfect rhythm
+        var spawnIntervalMs = 1300; // slightly faster spawning to match higher speed
+        var spawnJitterMs = 500;   // moderate variation to avoid perfect rhythm
         var nextSpawnAt = 0;       // timestamp (ms) when next spawn is allowed
         var maxObjects = 2;        // cap concurrent objects (reduced for less clutter)
         var minLaneGapPx = 200;    // minimal vertical gap within same lane (increased)
@@ -249,54 +317,147 @@
         var contentCorrect = [];
         var contentIncorrect = [];
         var gameStarted = false;
+        var inMenu = true;
         
         // Track which items have been used (to avoid repeats)
         var usedCorrectItems = [];
         var usedIncorrectItems = [];
         var gameEnded = false;
+        var spawningFinished = false; // true when all content items have been spawned
+        // Pre-spawn question phase and spawn gating
+        var spawnEnabled = false;
+        var preSpawnActive = false;
+        var preSpawnEndTime = 0;
+        var preSpawnDurationMs = 2500; // show centered question ~2.5s before spawning
 
         function setQuestion(text) {
             var q = document.getElementById('questionDisplay');
             if (q) q.textContent = text;
         }
         
-        // Show upload prompt initially
-        function showUploadPrompt() {
-            setQuestion('Please upload content to start the game!');
+        function showQuestionCentered() {
+            var q = document.getElementById('questionDisplay');
+            if (!q) return;
+            q.style.display = 'block';
+            q.style.left = '50%';
+            q.style.right = '';
+            q.style.top = '50%';
+            q.style.bottom = '';
+            q.style.transform = 'translate(-50%, -50%)';
+            // Responsive font based on the smaller viewport side (better on phones)
+            var shortSide = Math.min(window.innerWidth, window.innerHeight) || 600;
+            var fs = Math.round(shortSide * 0.072); // ~7.2vmin
+            fs = Math.max(22, Math.min(fs, 80));
+            q.style.fontSize = fs + 'px';
+            // Constrain width to encourage wrapping on small screens
+            q.style.width = '92vw';
+            q.style.maxWidth = '1100px';
+            q.style.whiteSpace = 'normal';
+            q.style.backgroundColor = 'transparent';
+            q.style.padding = '0';
         }
-        showUploadPrompt();
+        
+        function showQuestionBottom() {
+            var q = document.getElementById('questionDisplay');
+            if (!q) return;
+            q.style.display = 'block';
+            // Full-width with margins; single line centered
+            q.style.left = '10px';
+            q.style.right = '10px';
+            q.style.top = '';
+            q.style.bottom = '18px';
+            q.style.transform = 'none';
+            // Smaller responsive font; clamp to keep modest on desktop
+            var fs = Math.round((window.innerWidth || 800) * 0.022); // ~2.2vw
+            fs = Math.max(14, Math.min(fs, 22));
+            q.style.fontSize = fs + 'px';
+            // Single line, ellipsis if too long
+            q.style.whiteSpace = 'nowrap';
+            q.style.overflow = 'hidden';
+            q.style.textOverflow = 'ellipsis';
+            q.style.width = 'auto';
+            q.style.maxWidth = 'none';
+            q.style.backgroundColor = 'transparent';
+            q.style.padding = '0';
+        }
+        
+        // Show loading prompt initially
+        function showLoadingPrompt() {
+            setQuestion('');
+        }
+        showLoadingPrompt();
 
-        // Upload content handlers
-        var uploadBtn = document.getElementById('uploadBtn');
-        var uploadInput = document.getElementById('uploadInput');
-        if (uploadBtn && uploadInput) {
-            uploadBtn.addEventListener('click', function() { uploadInput.click(); });
-            uploadInput.addEventListener('change', function(ev) {
-                var file = ev.target.files && ev.target.files[0];
-                if (!file) return;
-                var reader = new FileReader();
-                reader.onload = function() {
+        // On-demand content loading per menu choice: try JS -> JSON -> CSV for a base name
+        function loadContentForBase(baseName) {
+            // 1) JS via global window.GAME_CONTENT from <baseName>.js
+            function tryJS(next) {
+                var jsUrl = baseName + '.js';
+                var script = document.createElement('script');
+                var timedOut = false;
+                var timer = setTimeout(function(){ timedOut = true; cleanup(); next(); }, 1500);
+                function cleanup(){
+                    clearTimeout(timer);
+                    if (script && script.parentNode) script.parentNode.removeChild(script);
+                }
+                script.onload = function(){
+                    cleanup();
                     try {
-                        var text = String(reader.result || '');
-                        if (/^\s*\{/.test(text)) {
-                            // JSON
-                            var data = JSON.parse(text);
-                            applyUploadedContent(data);
+                        if (window && window.GAME_CONTENT) {
+                            applyUploadedContent(window.GAME_CONTENT);
+                            // clear it so subsequent loads don't reuse
+                            try { delete window.GAME_CONTENT; } catch(e) { window.GAME_CONTENT = undefined; }
+                            // success -> start
+                            enableTiltControls();
+                            startGame();
                         } else {
-                            // CSV
-                            var data = parseCSV(text);
-                            applyUploadedContent(data);
+                            next();
                         }
-                        // Reset input
-                        uploadInput.value = '';
-                        alert('Content loaded successfully.');
-                    } catch (e) {
-                        console.error(e);
-                        alert('Failed to load content. Please upload valid JSON or CSV.');
+                    } catch(e) {
+                        console.error('Invalid GAME_CONTENT in', jsUrl, e);
+                        next();
                     }
                 };
-                reader.readAsText(file);
-            });
+                script.onerror = function(){ cleanup(); next(); };
+                script.src = jsUrl + '?_=' + Date.now();
+                document.body.appendChild(script);
+            }
+
+            // 2) JSON
+            function tryJSON(next) {
+                if (location && location.protocol === 'file:') { next(); return; }
+                var url = baseName + '.json';
+                fetch(url, { cache: 'no-store' })
+                    .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.json(); })
+                    .then(function(data){
+                        applyUploadedContent(data);
+                        enableTiltControls();
+                        startGame();
+                    })
+                    .catch(function(){ next(); });
+            }
+
+            // 3) CSV
+            function tryCSV(next) {
+                if (location && location.protocol === 'file:') {
+                    setQuestion('Cannot load content over file://. Please serve the folder via a local web server or deploy.');
+                    return;
+                }
+                var url = baseName + '.csv';
+                fetch(url, { cache: 'no-store' })
+                    .then(function(res){ if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+                    .then(function(text){
+                        var data = parseCSV(text);
+                        applyUploadedContent(data);
+                        enableTiltControls();
+                        startGame();
+                    })
+                    .catch(function(){
+                        setQuestion('No content found for "' + baseName + '". Provide ' + baseName + '.js/.json/.csv.');
+                    });
+            }
+
+            // Chain JS -> JSON -> CSV
+            tryJS(function(){ tryJSON(function(){ tryCSV(function(){ /* unreachable */ }); }); });
         }
 
         // Sample content (Big Data topic)
@@ -369,11 +530,7 @@
             downloadBlob('sample-content.csv', lines.join('\n'), 'text/csv');
         }
 
-        // Wire sample download buttons
-        var downloadJsonBtn = document.getElementById('downloadJsonBtn');
-        var downloadCsvBtn = document.getElementById('downloadCsvBtn');
-        if (downloadJsonBtn) downloadJsonBtn.addEventListener('click', downloadSampleJSON);
-        if (downloadCsvBtn) downloadCsvBtn.addEventListener('click', downloadSampleCSV);
+        // Removed sample download UI; helper functions kept for reference if needed
 
         function applyUploadedContent(data) {
             // JSON format: { question: string, correct: string[], incorrect: string[] }
@@ -393,54 +550,103 @@
             
             setQuestion(contentQuestion);
             
-            // Hide upload buttons and start game
-            hideUploadButtons();
-            startGame();
-        }
-        
-        function hideUploadButtons() {
-            var uploadBtn = document.getElementById('uploadBtn');
-            var downloadJsonBtn = document.getElementById('downloadJsonBtn');
-            var downloadCsvBtn = document.getElementById('downloadCsvBtn');
-            if (uploadBtn) uploadBtn.style.display = 'none';
-            if (downloadJsonBtn) downloadJsonBtn.style.display = 'none';
-            if (downloadCsvBtn) downloadCsvBtn.style.display = 'none';
+            // Do not auto-start; show menu first
+            // startGame();
         }
         
         function startGame() {
             gameStarted = true;
+            inMenu = false;
             gameEnded = false;
+            spawningFinished = false;
             correctCount = 0;
             wrongCount = 0;
-            caughtWrongItems = [];
+            missedCorrectCount = 0;
             console.log('Game started with content:', contentQuestion);
+            // Ensure UI displays
+            document.getElementById('questionDisplay').style.display = 'block';
+            document.getElementById('scoreDisplay').style.display = 'none';
+            var menu = document.getElementById('menuOverlay');
+            if (menu) menu.style.display = 'none';
+            setQuestion(contentQuestion);
+            updateScore();
+            // Reset objects and feedbacks; schedule pre-spawn question phase
+            objects = [];
+            feedbacks = [];
+            nextSpawnAt = performance.now();
+            spawnEnabled = false;
+            preSpawnActive = true;
+            preSpawnEndTime = performance.now() + preSpawnDurationMs;
+            showQuestionCentered();
         }
         
         function endGame() {
             gameEnded = true;
-            var totalCorrectItems = contentCorrect.length;
-            var accuracy = totalCorrectItems > 0 ? Math.round((correctCount / totalCorrectItems) * 100) : 0;
-            
-            var qEl = document.getElementById('questionDisplay');
-            if (qEl) {
-                var wrongListStr = caughtWrongItems.map(escapeHTML).join(', ');
-                qEl.innerHTML = 'Game Over! Accuracy: ' + accuracy + '% (' + correctCount + '/' + totalCorrectItems + ' correct items)'
-                    + '<div style="font-size: 11px; margin-top: 6px; opacity: 0.9; white-space: normal; overflow-wrap: anywhere; line-height: 1.25; text-align: center;">Wrongly caught: ' + (wrongListStr || '—') + '</div>';
-            } else {
-                setQuestion('Game Over! Accuracy: ' + accuracy + '% (' + correctCount + '/' + totalCorrectItems + ' correct items)');
-            }
             console.log('Game ended. Final score:', correctCount, 'correct,', wrongCount, 'wrong');
-            
             // Clear any remaining objects
             objects = [];
             feedbacks = [];
+            // Hide in-game UI elements
+            var qEl = document.getElementById('questionDisplay');
+            if (qEl) qEl.style.display = 'none';
+            
+            // Prepare a styled summary: title + colored counts in scoreDisplay
+            var scoreDisplay = document.getElementById('scoreDisplay');
+            if (scoreDisplay) {
+                scoreDisplay.style.display = 'block';
+                scoreDisplay.style.backgroundColor = 'rgba(0, 0, 0, 0.55)';
+                scoreDisplay.style.left = '50%';
+                scoreDisplay.style.top = '20%';
+                scoreDisplay.style.transform = 'translateX(-50%)';
+                scoreDisplay.style.right = '';
+                scoreDisplay.style.padding = '14px 18px';
+                scoreDisplay.style.fontSize = '18px';
+                scoreDisplay.style.textAlign = 'center';
+                scoreDisplay.innerHTML = '<div style="margin-bottom:8px; font-weight:bold;">Tvůj výsledný dataset:</div>' +
+                    '<div><span style="color:#2ecc71; font-weight:bold;">Správné:</span> ' + correctCount + '</div>' +
+                    '<div><span style="color:#e74c3c; font-weight:bold;">Nesprávné:</span> ' + wrongCount + '</div>' +
+                    '<div><span style="color:#3498db; font-weight:bold;">Chybějící:</span> ' + missedCorrectCount + '</div>';
+            }
         }
 
         function parseCSV(csvText) {
+            // Helpers for CSV parsing with quotes
+            function splitCSVLine(line) {
+                var out = [];
+                var field = '';
+                var inQuotes = false;
+                for (var i = 0; i < line.length; i++) {
+                    var ch = line[i];
+                    if (ch === '"') {
+                        if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+                            field += '"'; // escaped quote
+                            i++; // skip next
+                        } else {
+                            inQuotes = !inQuotes; // toggle quoting
+                        }
+                    } else if (ch === ',' && !inQuotes) {
+                        out.push(field);
+                        field = '';
+                    } else {
+                        field += ch;
+                    }
+                }
+                out.push(field);
+                return out;
+            }
+            function unquoteCSVField(s) {
+                if (typeof s !== 'string') return s;
+                var v = s.trim();
+                if (v.length >= 2 && v[0] === '"' && v[v.length - 1] === '"') {
+                    v = v.substring(1, v.length - 1).replace(/""/g, '"');
+                }
+                return v;
+            }
+
             // Expected header: type,text OR question,text (question row optional)
             var lines = csvText.split(/\r?\n/).filter(function(l){return l.trim().length>0;});
             if (!lines.length) throw new Error('Empty CSV');
-            var header = lines[0].split(',').map(function(h){return h.trim().toLowerCase();});
+            var header = splitCSVLine(lines[0]).map(function(h){return unquoteCSVField(h).trim().toLowerCase();});
             var idxType = header.indexOf('type');
             var idxText = header.indexOf('text');
             var idxQuestion = header.indexOf('question');
@@ -450,13 +656,13 @@
             var question = 'Collect the correct items!';
             for (var i=1;i<lines.length;i++) {
                 var raw = lines[i];
-                var parts = raw.split(',');
+                var parts = splitCSVLine(raw);
                 if (parts.length < 1) continue;
                 if (idxQuestion !== -1 && parts[idxQuestion] && parts[idxQuestion].trim().length>0) {
-                    question = parts[idxQuestion].trim();
+                    question = unquoteCSVField(parts[idxQuestion]);
                 }
-                var t = parts[idxText] ? parts[idxText].trim() : '';
-                var ty = idxType !== -1 && parts[idxType] ? parts[idxType].trim().toLowerCase() : '';
+                var t = parts[idxText] ? unquoteCSVField(parts[idxText]) : '';
+                var ty = idxType !== -1 && parts[idxType] ? unquoteCSVField(parts[idxType]).toLowerCase() : '';
                 if (!t) continue;
                 if (ty === 'correct') corr.push(t);
                 else if (ty === 'incorrect') inc.push(t);
@@ -465,17 +671,40 @@
             return { question: question, correct: corr, incorrect: inc };
         }
         
+        // Load a specific CSV file and start the game on success
+        function loadCSVThenStart(url) {
+            if (location && location.protocol === 'file:') {
+                console.error('Cannot fetch local files over file:// due to browser restrictions.');
+                setQuestion('Cannot load content over file://. Please serve the folder via a local web server or deploy.');
+                return;
+            }
+            fetch(url, { cache: 'no-store' })
+                .then(function(res){
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.text();
+                })
+                .then(function(text){
+                    var data = parseCSV(text);
+                    applyUploadedContent(data);
+                    // iOS may require a gesture; this click counts, so try again
+                    enableTiltControls();
+                    startGame();
+                })
+                .catch(function(err){
+                    console.error('Failed to load', url, err);
+                    setQuestion('Failed to load ' + url + '.');
+                });
+        }
+        
         // Update score display
         function updateScore() {
             var scoreDisplay = document.getElementById('scoreDisplay');
             if (scoreDisplay) {
-                scoreDisplay.innerHTML = 'Correct: ' + correctCount + ' | Wrong: ' + wrongCount;
+                scoreDisplay.innerHTML = 'Tvůj výsledný dataset: ' +
+                    'Správné: ' + correctCount + ' | ' +
+                    'Nesprávné: ' + wrongCount + ' | ' +
+                    'Chybějící: ' + missedCorrectCount;
             }
-        }
-        function escapeHTML(s) {
-            return String(s).replace(/[&<>"']/g, function(ch){
-                return ch === '&' ? '&amp;' : ch === '<' ? '&lt;' : ch === '>' ? '&gt;' : ch === '"' ? '&quot;' : '&#39;';
-            });
         }
         
         // Load all image assets
@@ -554,13 +783,37 @@
                 vehicleLoaded = false;
             }
 
-            // Wrong icon (optional)
+            // Object background image
+            objectBgImage = new Image();
+            objectBgImage.onload = function() {
+                objectBgLoaded = true;
+                console.log('Object background loaded');
+            };
+            objectBgImage.onerror = function() {
+                objectBgLoaded = false;
+                console.log('Object background failed to load, using rectangle fallback');
+            };
             try {
-                var imgWrong = new Image();
-                imgWrong.onload = function(){ window.__wrongIcon = imgWrong; };
-                imgWrong.onerror = function(){ window.__wrongIcon = null; };
-                imgWrong.src = 'wrong.png';
-            } catch (e) { window.__wrongIcon = null; }
+                objectBgImage.src = 'object_background.png';
+            } catch (e) {
+                objectBgLoaded = false;
+            }
+
+        // Wrong icon image (for incorrect catches)
+        wrongIcon = new Image();
+        wrongIcon.onload = function() {
+            wrongIconLoaded = true;
+            console.log('Wrong icon loaded');
+        };
+        wrongIcon.onerror = function() {
+            wrongIconLoaded = false;
+            console.log('Wrong icon failed to load, using vector X fallback');
+        };
+        try {
+            wrongIcon.src = 'wrong.png';
+        } catch (e) {
+            wrongIconLoaded = false;
+        }
         }
         
         // Draw road with two layers (static + scrolling overlay)
@@ -571,16 +824,21 @@
                 ctx.fillStyle = '#27ae60';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
             } else {
-                drawScrollingStaticBackground();
+                if (inMenu) {
+                    // In menu: keep static background still
+                    drawStaticBackgroundScaled();
+                } else {
+                    drawScrollingStaticBackground();
+                }
             }
 
-            if (midLoaded) {
+            if (!inMenu && midLoaded) {
                 drawScrollingMidOverlay();
             }
 
-            if (scrollLoaded) {
+            if (!inMenu && scrollLoaded) {
                 drawScrollingOverlay();
-            } else {
+            } else if (!inMenu) {
                 // Fallback to original drawn road lines if overlay missing
                 drawDrawnRoad();
             }
@@ -676,7 +934,7 @@
             ctx.stroke();
         }
         
-        // Draw static road (no scrolling) for game over screen
+        // Draw static road (no scrolling) for game over or menu screen
         function drawStaticRoad() {
             if (staticLoaded) {
                 drawStaticBackgroundScaled();
@@ -684,6 +942,20 @@
                 // Fallback to drawn static road
                 drawStaticDrawnRoad();
             }
+        }
+
+        // Helper: draw static background covering screen (no scrolling)
+        function drawStaticBackgroundScaled() {
+            var iw = staticBackground.width;
+            var ih = staticBackground.height;
+            var scaleX = canvas.width / iw;
+            var scaleY = canvas.height / ih;
+            var scale = Math.max(scaleX, scaleY);
+            var sw = iw * scale;
+            var sh = ih * scale;
+            var offsetX = (canvas.width - sw) / 2;
+            var offsetY = (canvas.height - sh) / 2;
+            ctx.drawImage(staticBackground, offsetX, offsetY, sw, sh);
         }
         
         // Fallback: static drawn road
@@ -803,6 +1075,7 @@
         function maybeSpawn(nowMs) {
             // Don't spawn if game hasn't started or has ended
             if (!gameStarted || gameEnded) return;
+            if (!spawnEnabled) return;
             if (objects.length >= maxObjects) return;
             if (nowMs < nextSpawnAt) return;
 
@@ -815,7 +1088,8 @@
             });
             
             if (unusedCorrect.length === 0 && unusedIncorrect.length === 0) {
-                endGame();
+                // All items have been spawned at least once; mark spawning finished
+                spawningFinished = true;
                 return;
             }
 
@@ -840,76 +1114,148 @@
             nextSpawnAt = nowMs + spawnIntervalMs + jitter;
         }
         
+        // Compute object card size (keeps 500x300 aspect ratio by default)
+        function getObjectCardSize() {
+            // Bigger for phone readability (~14% of canvas height)
+            var baseH = Math.max(100, Math.round(canvas.height * 0.14));
+            var ratio = 500 / 300;
+            if (objectBgLoaded && objectBgImage && objectBgImage.width && objectBgImage.height) {
+                ratio = objectBgImage.width / objectBgImage.height;
+            }
+            var w = Math.round(baseH * ratio);
+            return { w: w, h: baseH };
+        }
+
+        // Wrap text by whole words only; never split a word. Width fit is enforced by font sizing.
+        function wrapTextLines(ctx, text, maxWidth) {
+            var words = String(text || '').split(/\s+/);
+            var lines = [];
+            var current = '';
+            for (var i = 0; i < words.length; i++) {
+                var test = current ? (current + ' ' + words[i]) : words[i];
+                if (ctx.measureText(test).width <= maxWidth) {
+                    current = test;
+                } else {
+                    if (current) lines.push(current);
+                    // Start a new line with the word; if it doesn't fit, font size must be reduced by caller
+                    current = words[i];
+                }
+            }
+            if (current) lines.push(current);
+            return lines;
+        }
+
+        // Fit text: auto font size and wrapped lines to fit within card, no truncation
+        function layoutObjectText(ctx, text, w, h) {
+            var maxFont = Math.max(16, Math.floor(h * 0.34));
+            var minFont = 8; // allow smaller fonts for very long single words
+            var chosen = minFont;
+            var lines = [String(text || '')];
+            var maxWidth = w * 0.86;
+            for (var fs = maxFont; fs >= minFont; fs--) {
+                ctx.font = 'bold ' + fs + 'px Poppins, Arial, sans-serif';
+                var candidate = wrapTextLines(ctx, text, maxWidth);
+                // ensure no line exceeds maxWidth
+                var tooWide = false;
+                for (var i = 0; i < candidate.length; i++) {
+                    if (ctx.measureText(candidate[i]).width > maxWidth) { tooWide = true; break; }
+                }
+                if (tooWide) continue;
+                var lineHeightTmp = Math.round(fs * 1.12);
+                var totalHTmp = candidate.length * lineHeightTmp;
+                if (totalHTmp <= h * 0.82) { // fits inside card with margin
+                    chosen = fs;
+                    lines = candidate;
+                    break;
+                }
+            }
+            // If still too tall at min font, increase lineHeight compression slightly
+            var lineHeight = Math.round(chosen * 1.08);
+            var totalH = lines.length * lineHeight;
+            if (totalH > h * 0.9) {
+                lineHeight = Math.max(Math.round(chosen * 1.0), Math.floor((h * 0.9) / Math.max(1, lines.length)));
+            }
+            return { fontSize: chosen, lines: lines, lineHeight: lineHeight };
+        }
+ 
         // Draw objects
         function drawObjects() {
             for (var i = 0; i < objects.length; i++) {
                 var obj = objects[i];
-                
-                // Calculate text dimensions
-                ctx.font = 'bold 12px Arial';
-                var textWidth = ctx.measureText(obj.text).width;
-                var textHeight = 16;
-                var padding = 8;
-                
-                // Draw background rectangle (same color for both correct and incorrect)
-                ctx.fillStyle = '#3498db'; // Blue color for all objects
-                ctx.fillRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
-                           textWidth + padding*2, textHeight + padding*2);
-                
-                // Draw border
-                ctx.strokeStyle = '#2c3e50';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(obj.x - textWidth/2 - padding, obj.y - textHeight/2 - padding, 
-                             textWidth + padding*2, textHeight + padding*2);
-                
-                // Draw text
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 12px Arial';
+                var sz = getObjectCardSize();
+                var w = sz.w, h = sz.h;
+
+                // Draw background image or fallback
+                if (objectBgLoaded) {
+                    ctx.drawImage(objectBgImage, obj.x - w/2, obj.y - h/2, w, h);
+                } else {
+                    ctx.fillStyle = '#3498db';
+                    ctx.fillRect(obj.x - w/2, obj.y - h/2, w, h);
+                    ctx.strokeStyle = '#2c3e50';
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(obj.x - w/2, obj.y - h/2, w, h);
+                }
+
+                // Draw wrapped text (2-3 lines) centered
+                var layout = layoutObjectText(ctx, obj.text, w, h);
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                ctx.fillText(obj.text, obj.x, obj.y);
+                ctx.font = 'bold ' + layout.fontSize + 'px Poppins, Arial, sans-serif';
+                ctx.fillStyle = '#ffffff';
+                ctx.shadowColor = 'rgba(0,0,0,0.45)';
+                ctx.shadowBlur = 2;
+                ctx.shadowOffsetY = 1;
+                var totalH = layout.lines.length * layout.lineHeight;
+                var startY = obj.y - totalH / 2 + layout.lineHeight / 2;
+                for (var li = 0; li < layout.lines.length; li++) {
+                    ctx.fillText(layout.lines[li], obj.x, startY + li * layout.lineHeight);
+                }
+                // Reset shadow
+                ctx.shadowColor = 'transparent';
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
             }
         }
 
-        // Draw transient feedback (wrong-catch icon), fades and shrinks slightly
+        // Draw transient feedbacks (e.g., wrong-catch icon)
         function drawFeedbacks(nowTs) {
-            if (!feedbacks.length) return;
+            if (!feedbacks || !feedbacks.length) return;
             var nowVal = (typeof nowTs === 'number') ? nowTs : performance.now();
+            var sz = getObjectCardSize();
+            var baseH = sz.h;
             var remaining = [];
             for (var i = 0; i < feedbacks.length; i++) {
                 var f = feedbacks[i];
                 var elapsed = nowVal - f.start;
-                var dur = f.duration || 700;
+                var dur = f.duration || 400;
                 var p = Math.min(1, Math.max(0, elapsed / dur));
                 var alpha = 1 - p;
-                var scale = 1 - 0.15 * p; // slight shrink
+                var scale = 1 - 0.2 * p; // shrink slightly over time
 
-                // Icon size relative to canvas height (a bit larger)
-                var base = Math.max(24, Math.min(64, Math.round(canvas.height * 0.033)));
-                var iconSize = Math.round(base * scale);
-                var half = Math.floor(iconSize / 2);
-
-                var icon = window.__wrongIcon;
-                if (icon && icon.width) {
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.drawImage(icon, f.x - half, f.y - half, iconSize, iconSize);
-                    ctx.restore();
-                } else {
-                    // Fallback vector X
-                    ctx.save();
-                    ctx.globalAlpha = alpha;
-                    ctx.lineCap = 'round';
-                    ctx.lineJoin = 'round';
-                    ctx.strokeStyle = '#e74c3c';
-                    ctx.lineWidth = Math.max(4, Math.round(iconSize * 0.14));
-                    ctx.beginPath();
-                    ctx.moveTo(f.x - half, f.y - half);
-                    ctx.lineTo(f.x + half, f.y + half);
-                    ctx.moveTo(f.x + half, f.y - half);
-                    ctx.lineTo(f.x - half, f.y + half);
-                    ctx.stroke();
-                    ctx.restore();
+                if (f.type === 'wrong') {
+                    var iconSize = Math.round(baseH * 0.6 * scale);
+                    var half = Math.floor(iconSize / 2);
+                    if (wrongIconLoaded && wrongIcon && wrongIcon.width) {
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.drawImage(wrongIcon, f.x - half, f.y - half, iconSize, iconSize);
+                        ctx.restore();
+                    } else {
+                        // Fallback vector X
+                        ctx.save();
+                        ctx.globalAlpha = alpha;
+                        ctx.lineCap = 'round';
+                        ctx.lineJoin = 'round';
+                        ctx.strokeStyle = '#e74c3c';
+                        ctx.lineWidth = Math.max(4, Math.round(iconSize * 0.12));
+                        ctx.beginPath();
+                        ctx.moveTo(f.x - half, f.y - half);
+                        ctx.lineTo(f.x + half, f.y + half);
+                        ctx.moveTo(f.x + half, f.y - half);
+                        ctx.lineTo(f.x - half, f.y + half);
+                        ctx.stroke();
+                        ctx.restore();
+                    }
                 }
 
                 if (p < 1) remaining.push(f);
@@ -921,9 +1267,14 @@
         function updateObjects() {
             for (var i = objects.length - 1; i >= 0; i--) {
                 // Objects move toward the car (downward) at game speed
-                objects[i].y += gameSpeed;
+                objects[i].y += gameSpeed * frameDtFactor;
                 
                 if (objects[i].y > canvas.height) {
+                    // Count missed correct items
+                    if (objects[i].isCorrect) {
+                        missedCorrectCount++;
+                        updateScore();
+                    }
                     objects.splice(i, 1);
                 }
             }
@@ -933,27 +1284,29 @@
         function checkCollisions() {
             for (var i = objects.length - 1; i >= 0; i--) {
                 var obj = objects[i];
+                // Object dimensions based on card size
+                var card = getObjectCardSize();
+                var objWidth = card.w;
+                var objHeight = card.h;
                 
-                // Calculate object dimensions for collision
-                ctx.font = 'bold 12px Arial';
-                var textWidth = ctx.measureText(obj.text).width;
-                var padding = 8;
-                var objWidth = textWidth + padding * 2;
-                var objHeight = 16 + padding * 2;
-                
-                // Check collision with car
-                if (obj.y > carY - 25 && obj.y < carY + 25 && 
+                // Check collision with car (simple AABB approximation)
+                if (obj.y > carY - 25 && obj.y < carY + 25 &&
                     obj.x > carX - objWidth/2 && obj.x < carX + objWidth/2) {
                     
                     if (obj.isCorrect) {
                         correctCount++;
                     } else {
                         wrongCount++;
-                        caughtWrongItems.push(obj.text);
-                        // Spawn visual feedback at collision point (longer duration, bigger)
-                        feedbacks.push({ x: obj.x, y: obj.y, start: performance.now(), duration: 700, type: 'wrong' });
+                        // Visual feedback at collision point
+                        try {
+                            feedbacks.push({ x: obj.x, y: obj.y, type: 'wrong', start: performance.now(), duration: 450 });
+                        } catch(e) {}
+                        // Haptic feedback where supported
+                        if (navigator && typeof navigator.vibrate === 'function') {
+                            try { navigator.vibrate(120); } catch(e) {}
+                        }
                     }
-                    
+
                     updateScore();
                     objects.splice(i, 1);
                 }
@@ -962,35 +1315,22 @@
         
         // Tilt setup function - simplified for landscape
         function enableTiltControls() {
-            console.log('Enabling tilt controls...');
-            
-            if (window.DeviceOrientationEvent) {
-                // Try to request permission on iOS
-                if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-                    DeviceOrientationEvent.requestPermission()
-                        .then(function(response) {
-                            console.log('Permission response:', response);
-                            if (response === 'granted') {
-                                startTiltListener();
-                            } else {
-                                console.log('Permission denied');
-                            }
-                        })
-                        .catch(function(error) {
-                            console.log('Permission error:', error);
-                        });
-                } else {
-                    // No permission needed
-                    startTiltListener();
-                }
+            if (!window.DeviceOrientationEvent) return;
+            // Auto-enable; request permission on iOS if required
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(function(response) {
+                        if (response === 'granted') startTiltListener();
+                    })
+                    .catch(function(){});
             } else {
-                console.log('DeviceOrientationEvent not supported');
+                startTiltListener();
             }
         }
         
         function startTiltListener() {
             console.log('Starting tilt listener...');
-            var tiltStatus = document.getElementById('tiltStatus');
+            var tiltStatus = null; // no on-screen status
             
             window.addEventListener('deviceorientation', function(e) {
                 if (e.gamma !== null && e.gamma !== undefined && e.beta !== null && e.beta !== undefined) {
@@ -1004,52 +1344,38 @@
 
                     tiltEnabled = true;
                     console.log('Tilt detected - Gamma:', e.gamma, 'Beta:', e.beta, 'Alpha:', e.alpha);
-                    if (tiltStatus) {
-                        tiltStatus.innerHTML = 'Tilt: Working (B:' + e.beta.toFixed(1) + ' G:' + e.gamma.toFixed(1) + ')';
-                        tiltStatus.style.background = 'rgba(46, 204, 113, 0.8)';
-                    }
+                    // no on-screen status
                 }
             });
             
             // Check if tilt is working after 2 seconds
-            setTimeout(function() {
-                if (!tiltEnabled && tiltStatus) {
-                    tiltStatus.innerHTML = 'Tilt: Not Supported';
-                    tiltStatus.style.background = 'rgba(231, 76, 60, 0.8)';
-                }
-            }, 2000);
+            setTimeout(function() { /* no UI status */ }, 2000);
         }
         
         // Enable tilt button
-        var enableTiltBtn = document.getElementById('enableTiltBtn');
-        if (enableTiltBtn) {
-            enableTiltBtn.addEventListener('click', function() {
-                console.log('Enable tilt button clicked');
-                enableTiltControls();
-                this.style.display = 'none';
-            });
-        }
+        // Auto-enable tilt on load (may require user gesture on iOS; we also call after menu start)
+        enableTiltControls();
         
-        // Touch controls - back to the better version
-        canvas.addEventListener('touchstart', function(e) {
-            e.preventDefault();
-            isDragging = true;
-        });
-        
-        canvas.addEventListener('touchmove', function(e) {
-            e.preventDefault();
-            if (isDragging) {
-                var touch = e.touches[0];
-                var roadWidth = canvas.width * 0.8; // Match the road width
-                var roadX = (canvas.width - roadWidth) / 2;
-                carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, touch.clientX));
-            }
-        });
-        
-        canvas.addEventListener('touchend', function(e) {
-            e.preventDefault();
-            isDragging = false;
-        });
+        // Touch controls disabled per user request (tilt + keyboard only)
+        // canvas.addEventListener('touchstart', function(e) {
+        //     e.preventDefault();
+        //     isDragging = true;
+        // });
+        // 
+        // canvas.addEventListener('touchmove', function(e) {
+        //     e.preventDefault();
+        //     if (isDragging) {
+        //         var touch = e.touches[0];
+        //         var roadWidth = canvas.width * 0.8; // Match the road width
+        //         var roadX = (canvas.width - roadWidth) / 2;
+        //         carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, touch.clientX));
+        //     }
+        // });
+        // 
+        // canvas.addEventListener('touchend', function(e) {
+        //     e.preventDefault();
+        //     isDragging = false;
+        // });
         
         // Mouse controls (PC): horizontal drag sets position and steering axis
         canvas.addEventListener('mousedown', function(e) {
@@ -1112,7 +1438,7 @@
             var roadWidth = canvas.width * 0.8;
             var roadX = (canvas.width - roadWidth) / 2;
             
-            // Prefer tilt when it's meaningfully active, even if the screen is touched
+            // Prefer tilt when it's meaningfully active
             var tiltActive = tiltEnabled && Math.abs(tiltX) > (controlDeadzoneDeg + 0.5); // hysteresis
             var usingTilt = !!tiltActive;
             lastUsingTilt = usingTilt;
@@ -1125,10 +1451,13 @@
                 var norm = range > 0 ? Math.min(1, mag / range) : 0;
                 
                 // 2. Map the normalized tilt directly to a target velocity.
-                var targetVelocity = norm * velocityMax * (tiltX < 0 ? -1 : 1);
+                var sign = tiltX < 0 ? -1 : 1;
+                var shaped = Math.pow(norm, tiltCurveExp);
+                var targetVelocity = shaped * velocityMaxTilt * sign;
                 
                 // 3. Smoothly ease the car's current velocity towards the target velocity.
-                carVelocity += (targetVelocity - carVelocity) * tiltResponse;
+                var tiltLerp = 1 - Math.pow(1 - tiltResponse, frameDtFactor);
+                carVelocity += (targetVelocity - carVelocity) * tiltLerp;
 
             } else { 
                 // --- DESKTOP: ACCELERATION-BASED CONTROL ---
@@ -1136,34 +1465,50 @@
                 var carSteering = isActivelySteering ? Math.max(-1, Math.min(1, inputAxis)) : 0;
                 
                 // Apply acceleration force.
-                var steeringForce = carSteering * steeringSensitivity;
+                var steeringForce = carSteering * steeringSensitivity * frameDtFactor;
                 carVelocity += steeringForce;
                 
                 // Apply friction only when not actively steering.
                 if (!isActivelySteering) {
-                    carVelocity *= frictionWhenNoInput;
+                    var frictionPow = Math.pow(frictionWhenNoInput, frameDtFactor);
+                    carVelocity *= frictionPow;
                 }
             }
             
             // --- COMMON PHYSICS ---
             // Safeguard to ensure velocity doesn't exceed the maximum.
-            carVelocity = Math.max(-velocityMax, Math.min(velocityMax, carVelocity));
+            var currentMax = lastUsingTilt ? velocityMaxTilt : velocityMaxDesktop;
+            carVelocity = Math.max(-currentMax, Math.min(currentMax, carVelocity));
             
             // Update car position.
-            carX += carVelocity;
+            carX += carVelocity * frameDtFactor;
             
             // Keep car within road boundaries.
             carX = Math.max(roadX + 15, Math.min(roadX + roadWidth - 15, carX));
 
             // Smoothly update visual tilt angle based on velocity.
             var maxTiltDeg = 15; // maximum visual banking angle
-            var targetAngle = (carVelocity / velocityMax) * (maxTiltDeg * Math.PI / 180);
+            var targetAngle = (carVelocity / currentMax) * (maxTiltDeg * Math.PI / 180);
             carAngle = carAngle || 0;
             carAngle += (targetAngle - carAngle) * 0.2; // smoothing factor
         }
         
         // Game loop
         function gameLoop(now) {
+            // Delta time (normalize to 60fps)
+            if (typeof now === 'number') {
+                if (lastTimestamp === null) lastTimestamp = now;
+                var dtMs = now - lastTimestamp;
+                lastTimestamp = now;
+                // Clamp to avoid giant jumps
+                if (!isFinite(dtMs) || dtMs <= 0) dtMs = 16.6667;
+                if (dtMs > 250) dtMs = 250;
+                frameDtFactor = dtMs / 16.6667;
+                frameDtSec = dtMs / 1000;
+            } else {
+                frameDtFactor = 1;
+                frameDtSec = 1/60;
+            }
             // If game is over, just show static screen
             if (gameEnded) {
                 // Clear
@@ -1173,24 +1518,32 @@
                 ctx.fillStyle = '#27ae60';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 
-                // Draw static road (no scrolling)
+                // Final screen: same design as intro menu (static background only)
                 drawStaticRoad();
-                
-                // Draw car in center
-                drawCar();
                 
                 // Continue loop but don't update anything
                 requestAnimationFrame(gameLoop);
                 return;
             }
             
-            // Update car physics
-            updateCarPhysics();
+            // Handle pre-spawn question timing
+            if (preSpawnActive) {
+                if (performance.now() >= preSpawnEndTime) {
+                    preSpawnActive = false;
+                    spawnEnabled = true;
+                    showQuestionBottom();
+                }
+            }
             
-            // Update road scrolling
-            roadOffset += gameSpeed;
-            staticOffset += gameSpeed * staticParallaxFactor;
-            midOffset += gameSpeed * midParallaxFactor;
+            // Update car physics only during gameplay
+            if (!inMenu) {
+                updateCarPhysics();
+            }
+            
+            // Update road scrolling (delta-time based)
+            roadOffset += gameSpeed * frameDtFactor;
+            staticOffset += gameSpeed * staticParallaxFactor * frameDtFactor;
+            midOffset += gameSpeed * midParallaxFactor * frameDtFactor;
             
             // Clear
             ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -1202,31 +1555,38 @@
             // Update
             maybeSpawn(typeof now === 'number' ? now : performance.now());
             updateObjects();
+            // If spawning is finished and there are no objects left, end the game
+            if (!gameEnded && spawningFinished && objects.length === 0) {
+                endGame();
+            }
             checkCollisions();
             
             // Draw
             drawRoad();
-            drawCar();
-            drawObjects();
-            drawFeedbacks(now);
+            if (!inMenu) {
+                drawCar();
+                drawObjects();
+                drawFeedbacks(now);
+            }
             
             // Live debug overlay
             if (showDebugValues && debugInfo) {
                 debugInfo.innerHTML = 'Canvas: ' + canvas.width + 'x' + canvas.height +
                     '<br>tiltEnabled: ' + tiltEnabled + ' usingTilt: ' + lastUsingTilt +
                     '<br>tiltX(B): ' + (typeof tiltX === 'number' ? tiltX.toFixed(1) : 'n/a') +
-                    '<br>isDragging: ' + isDragging + ' inputAxis: ' + inputAxis.toFixed(2) +
-                    '<br>carVelocity: ' + carVelocity.toFixed(2);
+                    '<br>inputAxis: ' + inputAxis.toFixed(2) +
+                    '<br>carVelocity(px/s-frame@60): ' + carVelocity.toFixed(2) +
+                    '<br>dt(ms): ' + (frameDtSec*1000).toFixed(2) + ' factor: ' + frameDtFactor.toFixed(2);
             }
 
             // Continue
             requestAnimationFrame(gameLoop);
         }
         
-        // Load assets (backgrounds + vehicle)
+        // Load assets (backgrounds + vehicle) and content
         loadAssets();
         
-        // Start the game loop (but don't spawn objects until content is uploaded)
+        // Start the game loop (menu first; gameplay starts on button click)
         console.log('Game loop starting...');
         updateScore();
         // Initialize next spawn time and start loop
@@ -1237,7 +1597,7 @@
         window.addEventListener('resize', function() {
             setCanvasSize();
             carX = canvas.width / 2;
-            carY = canvas.height - 100;
+            carY = Math.round(canvas.height * carYRatio);
             debugInfo.innerHTML = 'Canvas: ' + canvas.width + 'x' + canvas.height;
         });
         
@@ -1261,12 +1621,129 @@
             }, 0);
         });
         
-        // Add full screen button
+        // Add fullscreen toggle image button in bottom-right
         var fullscreenBtn = document.createElement('button');
-        fullscreenBtn.innerHTML = 'Full Screen';
-        fullscreenBtn.style.cssText = 'position: absolute; top: 140px; left: 10px; background: #e74c3c; color: white; border: none; padding: 8px 12px; border-radius: 5px; font-size: 12px; z-index: 100;';
-        fullscreenBtn.addEventListener('click', requestFullScreen);
+        fullscreenBtn.id = 'fsToggleBtn';
+        fullscreenBtn.addEventListener('click', function(){
+            if (!document.fullscreenElement && !(document.webkitFullscreenElement || document.msFullscreenElement)) {
+                requestFullScreen();
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitCancelFullScreen) document.webkitCancelFullScreen();
+                else if (document.msExitFullscreen) document.msExitFullscreen();
+            }
+        });
         document.body.appendChild(fullscreenBtn);
+
+        function updateFsButton() {
+            var btn = document.getElementById('fsToggleBtn');
+            if (!btn) return;
+            var isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement);
+            btn.style.backgroundImage = isFs ? "url('minimize_screen_button.png')" : "url('full_screen_button.png')";
+        }
+        document.addEventListener('fullscreenchange', updateFsButton);
+        document.addEventListener('webkitfullscreenchange', updateFsButton);
+        document.addEventListener('msfullscreenchange', updateFsButton);
+        updateFsButton();
+
+        // Menu button wiring
+        var btnStart = document.getElementById('btnStart');
+        if (btnStart) {
+            btnStart.addEventListener('click', function() {
+                loadContentForBase('content'); // Umělá inteligence
+            });
+        }
+        var btnSecond = document.getElementById('btnSecond');
+        if (btnSecond) {
+            btnSecond.addEventListener('click', function(){
+                loadContentForBase('content_2'); // Big Data
+            });
+        }
+
+        // Hide gameplay UI while in menu
+        (function initMenuUI(){
+            var menu = document.getElementById('menuOverlay');
+            if (menu) menu.style.display = 'flex';
+            document.getElementById('questionDisplay').style.display = 'none';
+            document.getElementById('scoreDisplay').style.display = 'none';
+            fitMenuText();
+        })();
+
+        // Dynamically fit button text to available width/height
+        function fitMenuText() {
+            var btnStart = document.getElementById('btnStart');
+            var btnSecond = document.getElementById('btnSecond');
+            var buttons = [btnStart, btnSecond].filter(function(b){return !!b;});
+            if (!buttons.length) return;
+            sizeMenuButtons();
+
+            var baseFactor = 0.44; // base font as % of button height
+            var safeWFactor = 0.78; // safe width area inside asset
+            var safeHFactor = 0.56; // safe height area inside asset
+            var marginFactor = 0.92; // little breathing room
+            var labels = [];
+            var minScale = 1;
+
+            // First pass: reset and measure each label at base font size
+            for (var i=0; i<buttons.length; i++) {
+                var button = buttons[i];
+                var label = button ? button.querySelector('.menuButtonLabel') : null;
+                if (!label) continue;
+                labels.push(label);
+                label.style.transform = 'scale(1)';
+                label.style.fontSize = Math.floor(button.clientHeight * baseFactor) + 'px';
+
+                var safeW = button.clientWidth * safeWFactor;
+                var safeH = button.clientHeight * safeHFactor;
+                var rect = label.getBoundingClientRect();
+                var labelW = rect.width || 1;
+                var labelH = rect.height || 1;
+                var scaleX = safeW > 0 ? (safeW / labelW) : 1;
+                var scaleY = safeH > 0 ? (safeH / labelH) : 1;
+                var scale = Math.min(1, scaleX, scaleY) * marginFactor;
+                if (scale < minScale) minScale = scale;
+            }
+
+            // Second pass: apply the same scale to all labels so font sizes match
+            for (var j=0; j<labels.length; j++) {
+                labels[j].style.transform = 'scale(' + (minScale || 1) + ')';
+            }
+        }
+        window.addEventListener('resize', fitMenuText);
+        if (document.fonts && document.fonts.ready) {
+            try { document.fonts.ready.then(function(){ fitMenuText(); }); } catch(e) {}
+        } else {
+            setTimeout(fitMenuText, 300);
+        }
+
+        // Ensure button clickable width matches the visual asset by enforcing aspect ratio
+        var menuButtonRatio = 1.8; // fallback ratio if image not yet loaded
+        (function preloadMenuButtonAsset(){
+            try {
+                var img = new Image();
+                img.onload = function(){
+                    if (img.naturalWidth && img.naturalHeight) {
+                        menuButtonRatio = img.naturalWidth / img.naturalHeight;
+                        sizeMenuButtons();
+                        fitMenuText();
+                    }
+                };
+                img.src = 'button.png';
+            } catch(e) { /* ignore */ }
+        })();
+
+        function sizeMenuButtons() {
+            var buttons = [ document.getElementById('btnStart'), document.getElementById('btnSecond') ];
+            for (var i=0; i<buttons.length; i++) {
+                var b = buttons[i];
+                if (!b) continue;
+                var h = b.clientHeight || 0;
+                if (h > 0 && isFinite(menuButtonRatio) && menuButtonRatio > 0.1) {
+                    var w = Math.round(h * menuButtonRatio);
+                    b.style.width = w + 'px';
+                }
+            }
+        }
     </script>
 </body>
 </html>
