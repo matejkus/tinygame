@@ -2,18 +2,18 @@
   "question": "Posbírej jen big data.",
   "correct": [
     "Globální data o počasí",
-    "Celosvětové finanční transakce",
+    "Globální finanční transakce",
     "Denní snímky ze satelitů",
     "Záznamy o klikání na e-shopu",
-    "Data o vyhledávání na Googlu",
-    "Všechny playlisty na Spotify",
-    "Miliony knih v PDF",
-    "Historie sledování na Netflixu",
+    "Záznamy Google dotazů",
+    "Všechny Spotify playlisty",
+    "Miliony PDF knih",
+    "Historie sledování (Netflix)",
     "GPS data z dopravy",
-    "Data o lajcích na Instagramu"
+    "Data o lajcích (Instagram)"
   ],
   "incorrect": [
-    "Excel s 5000 řádky",
+    "Excel s 1000 řádků",
     "Tvůj disk s filmy",
     "Rozvrhy hodin ve tvé škole",
     "Knihovna plná tištěných knih",
